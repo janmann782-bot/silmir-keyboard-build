@@ -1,0 +1,199 @@
+{
+  "language": "Sil'mir",
+  "version": 2,
+  "alphabet": [
+    "a",
+    "æ",
+    "b",
+    "d",
+    "c",
+    "e",
+    "ə",
+    "f",
+    "g",
+    "h",
+    "i",
+    "j",
+    "k",
+    "l",
+    "m",
+    "n",
+    "o",
+    "ø",
+    "p",
+    "r",
+    "s",
+    "ś",
+    "t",
+    "u",
+    "v",
+    "y",
+    "z",
+    "ź"
+  ],
+  "joining_sound": "ə",
+  "word_spacing": {
+    "bound_morphemes": "joined",
+    "particles_conjunctions_prepositions": "separate",
+    "hyphens": "avoided"
+  },
+  "noun": {
+    "template": [
+      "root",
+      "number",
+      "case"
+    ],
+    "number": {
+      "singular": "",
+      "dual": "et",
+      "plural": "in"
+    },
+    "case": {
+      "absolutive": "",
+      "ergative": "əś",
+      "accusative": "ən",
+      "dative": "uv",
+      "genitive": "om",
+      "instrumental": "yr",
+      "locative": "ov",
+      "ablative": "yf",
+      "directional": "iź"
+    },
+    "ergative_rule": "Non-pronoun subject of a transitive verb takes -əś; intransitive subject remains unmarked."
+  },
+  "pronouns": {
+    "cə": "я",
+    "pavil": "ты",
+    "hon": "он",
+    "dat": "она",
+    "sysæg": "оно",
+    "mæśærel": "мы",
+    "uneź": "вы",
+    "ynən": "они"
+  },
+  "pronoun_alignment": "Pronouns never take ergative -əś; direct-object pronouns take -ən.",
+  "verb": {
+    "documented_template": [
+      "root",
+      "tense",
+      "voice",
+      "person_number",
+      "register"
+    ],
+    "tense": {
+      "past": "a",
+      "present": "i",
+      "future": "u"
+    },
+    "person_number": {
+      "1sg": "m",
+      "2sg": "ś",
+      "3sg": "",
+      "1pl": "mn",
+      "2pl": "śn",
+      "3pl": "n"
+    },
+    "voice": {
+      "active": "",
+      "passive": "s",
+      "reflexive": "m"
+    },
+    "register": {
+      "ordinary": "s",
+      "respectful": "l"
+    },
+    "imperative": "øj",
+    "conditional_particle": "vizøs",
+    "participle": "uk",
+    "passive_participle": "suk",
+    "gerund": "eb",
+    "reduplication": "Repeat first syllable for habitual/durative action.",
+    "motion_prefixes": {
+      "toward": "sa",
+      "away": "ez"
+    },
+    "intensifier_prefix": "hy"
+  },
+  "adjective": {
+    "position": "before noun",
+    "agreement": "number only",
+    "number": {
+      "singular": "",
+      "dual": "et",
+      "plural": "in"
+    }
+  },
+  "comparison": {
+    "comparative": "yv",
+    "superlative": "yvm",
+    "attenuative": "yś",
+    "excessive": "yvs"
+  },
+  "adverb_from_adjective": "of",
+  "derivation": {
+    "adjective_from_noun": "yb",
+    "agent_active": "yn",
+    "action_result_product": "yl",
+    "diminutive": "ic",
+    "augmentative": "uz",
+    "collective": "av",
+    "ordinal": "t"
+  },
+  "negation": {
+    "verb_particle": "na",
+    "lexical_prefix": "na"
+  },
+  "questions": {
+    "yes_no_particle": "li",
+    "who": "emøg",
+    "what": "hit"
+  },
+  "word_order": "SVO, with topicalization allowed because case marking preserves roles.",
+  "irregular_colloquial": {
+    "tyt": "imperative of ty; иди",
+    "hremem": "reflexive imperative of hrem; умойся",
+    "lavi": "short locative of lav; в унитазе"
+  },
+  "notes": [
+    "Voice ordering follows the documented slot order; the source rules provide no full passive/reflexive paradigms, so those generated forms need canon review."
+  ],
+  "unknown_russian_word_fallback": {
+    "mode": "phonetic_transliteration_to_silmir_alphabet",
+    "description": "If a Russian token is absent from the translation dictionary, convert it to a readable Sil'mir-compatible Latin root instead of leaving Cyrillic.",
+    "mapping": {
+      "а": "a",
+      "б": "b",
+      "в": "v",
+      "г": "g",
+      "д": "d",
+      "е": "e",
+      "ё": "jo",
+      "ж": "ź",
+      "з": "z",
+      "и": "i",
+      "й": "j",
+      "к": "k",
+      "л": "l",
+      "м": "m",
+      "н": "n",
+      "о": "o",
+      "п": "p",
+      "р": "r",
+      "с": "s",
+      "т": "t",
+      "у": "u",
+      "ф": "f",
+      "х": "h",
+      "ц": "ts",
+      "ч": "tś",
+      "ш": "ś",
+      "щ": "śś",
+      "ъ": "",
+      "ы": "y",
+      "ь": "",
+      "э": "e",
+      "ю": "ju",
+      "я": "ja"
+    }
+  }
+}
