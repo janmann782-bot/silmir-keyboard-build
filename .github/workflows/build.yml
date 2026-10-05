@@ -1,4 +1,4 @@
-name: Build Silmir Keyboard v3.1
+name: Build Silmir Keyboard v4 ULTRA
 
 on:
   workflow_dispatch:
@@ -42,6 +42,7 @@ jobs:
           cp silmir-kit/assets/silmir_translation_lexicon.tsv keyboard/assets/silmir_translation_lexicon.tsv
           cp silmir-kit/assets/silmir_ru_forms_compact.tsv keyboard/assets/silmir_ru_forms_compact.tsv
           cp silmir-kit/assets/silmir_rules.json keyboard/assets/silmir_rules.json
+          cp silmir-kit/assets/silmir_semantic_aliases.tsv keyboard/assets/silmir_semantic_aliases.tsv
           cp silmir-kit/patch_silmir_keyboard.py keyboard/patch_silmir_keyboard.py
           cd keyboard
           python3 patch_silmir_keyboard.py
@@ -56,5 +57,5 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Silmir-Keyboard-v3.1-debug-apk
+          name: Silmir-Keyboard-v4-ULTRA-debug-apk
           path: keyboard/build/outputs/apk/debug/*.apk
