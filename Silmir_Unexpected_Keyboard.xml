@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<keyboard name="Sil'mir QWERTY" script="latin" locale_extra_keys="false">
+
+    <modmap>
+        <shift a="æ" b="Æ" />
+        <shift a="ə" b="Ə" />
+        <shift a="ø" b="Ø" />
+        <shift a="ś" b="Ś" />
+        <shift a="ź" b="Ź" />
+    </modmap>
+
+    <row>
+        <key c="q" nw="loc esc" />
+        <key c="w" />
+        <key c="e" n="ə" />
+        <key c="r" />
+        <key c="t" />
+        <key c="y" />
+        <key c="u" />
+        <key c="i" />
+        <key c="o" n="ø" />
+        <key c="p" />
+    </row>
+
+    <row>
+        <key shift="0.5" c="a" n="æ" nw="loc tab" />
+        <key c="s" n="ś" />
+        <key c="d" />
+        <key c="f" />
+        <key c="g" />
+        <key c="h" />
+        <key c="j" />
+        <key c="k" />
+        <key c="l" />
+    </row>
+
+    <row>
+        <key width="1.5" role="action" c="shift" ne="loc capslock" />
+        <key c="z" n="ź" />
+        <key c="x" />
+        <key c="c" />
+        <key c="v" />
+        <key c="b" />
+        <key c="n" ne="," />
+        <key c="m" ne="." />
+        <key width="1.5" role="action" c="backspace" n="delete" />
+    </row>
+
+</keyboard>
