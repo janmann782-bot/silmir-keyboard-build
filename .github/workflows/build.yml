@@ -1,17 +1,17 @@
-name: Build Silmir Unexpected Keyboard
+name: Build Silmir Keyboard v3.1
 
 on:
   workflow_dispatch:
   push:
     paths:
-      - "assets/silmir_words.txt"
-      - "inject_silmir.py"
+      - "assets/**"
+      - "SilmirTranslator.java"
+      - "patch_silmir_keyboard.py"
       - ".github/workflows/build.yml"
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout Silmir build kit
         uses: actions/checkout@v4
@@ -35,13 +35,16 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Inject Silmir dictionary
+      - name: Add Silmir assets and patch keyboard
         shell: bash
         run: |
           cp silmir-kit/assets/silmir_words.txt keyboard/assets/silmir_words.txt
-          cp silmir-kit/inject_silmir.py keyboard/inject_silmir.py
+          cp silmir-kit/assets/silmir_translation_lexicon.tsv keyboard/assets/silmir_translation_lexicon.tsv
+          cp silmir-kit/assets/silmir_ru_forms_compact.tsv keyboard/assets/silmir_ru_forms_compact.tsv
+          cp silmir-kit/assets/silmir_rules.json keyboard/assets/silmir_rules.json
+          cp silmir-kit/patch_silmir_keyboard.py keyboard/patch_silmir_keyboard.py
           cd keyboard
-          python3 inject_silmir.py
+          python3 patch_silmir_keyboard.py
 
       - name: Build debug APK
         shell: bash
@@ -53,5 +56,5 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Unexpected-Keyboard-Silmir
+          name: Silmir-Keyboard-v3.1-debug-apk
           path: keyboard/build/outputs/apk/debug/*.apk
