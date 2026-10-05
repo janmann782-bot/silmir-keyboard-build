@@ -54,6 +54,10 @@ public final class SilmirTranslator
 
   private final Map<String, Lex> lex = new HashMap<String, Lex>();
   private final Map<String, RuForm> ruForms = new HashMap<String, RuForm>();
+  private final Map<String, RuForm> semanticAliases = new HashMap<String, RuForm>();
+  private final Map<String, RuForm> semanticStems = new HashMap<String, RuForm>();
+  private final Map<String, RuForm> semanticLatin = new HashMap<String, RuForm>();
+  private final Map<String, RuForm> semanticLatinStems = new HashMap<String, RuForm>();
 
   private static final Map<String, String> SIL_FUNCTION = new HashMap<String, String>();
   private static final Map<String, String[]> PRON = new HashMap<String, String[]>();
@@ -80,9 +84,10 @@ public final class SilmirTranslator
     DUAL_RU.put("locative","двух"); DUAL_RU.put("ablative","двух"); DUAL_RU.put("directional","двум");
   }
 
-  public SilmirTranslator(InputStream lexiconTsv, InputStream russianFormsTsv) throws IOException
+  public SilmirTranslator(InputStream lexiconTsv, InputStream russianFormsTsv, InputStream semanticAliasesTsv) throws IOException
   {
     loadLexicon(lexiconTsv);
+    loadSemanticAliases(semanticAliasesTsv);
     loadRuForms(russianFormsTsv);
   }
 
@@ -113,6 +118,10 @@ public final class SilmirTranslator
       RuForm f = new RuForm();
       f.form = c[0]; f.root = c[1]; f.pos = c[2]; f.number = c[3]; f.morph = c[4]; f.lemma = c[5];
       try { f.priority = Integer.parseInt(c[6]); } catch (Exception e) { f.priority = 999; }
+      // The old morphology table can contain an obsolete synonym-root choice.
+      // Canonical semantic lemma mapping wins while preserving this row's tense/case/person.
+      RuForm sem = semanticAliases.get(normRu(f.lemma));
+      if (sem != null && sem.pos.equals(f.pos)) f.root = sem.root;
       String k = normRu(f.form);
       RuForm old = ruForms.get(k);
       if (old == null || f.priority < old.priority) ruForms.put(k, f);
@@ -120,9 +129,107 @@ public final class SilmirTranslator
     br.close();
   }
 
+  private void loadSemanticAliases(InputStream in) throws IOException
+  {
+    BufferedReader br = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
+    String line = br.readLine();
+    while ((line = br.readLine()) != null)
+    {
+      String[] c = line.split("\\t", -1);
+      if (c.length < 8) continue;
+      RuForm f = new RuForm();
+      f.form=c[0]; f.root=c[1]; f.pos=c[2]; f.number="sg"; f.lemma=c[0];
+      f.morph=f.pos.equals("verb") ? "verb:present:3" : "nom";
+      try { f.priority=Integer.parseInt(c[3]); } catch(Exception e){ f.priority=50; }
+      putBest(semanticAliases,normRu(c[0]),f);
+      if(!c[5].isEmpty()) putBest(semanticStems,c[5],f);
+      if(!c[6].isEmpty()) putBest(semanticLatin,c[6].toLowerCase(Locale.ROOT),f);
+      if(!c[7].isEmpty()) putBest(semanticLatinStems,c[7].toLowerCase(Locale.ROOT),f);
+    }
+    br.close();
+  }
+
+  private static void putBest(Map<String,RuForm> map,String key,RuForm f)
+  {
+    RuForm old=map.get(key);
+    if(old==null || f.priority<old.priority) map.put(key,f);
+  }
+
+  private RuForm resolveRussian(String token)
+  {
+    String n=normRu(token);
+    RuForm f=ruForms.get(n); if(f!=null) return f;
+    f=semanticAliases.get(n); if(f!=null) return f;
+    f=semanticStems.get(russianStem(n)); if(f!=null) return f;
+    String low=token.toLowerCase(Locale.ROOT);
+    f=semanticLatin.get(low); if(f!=null) return f;
+    f=semanticLatinStems.get(latinRussianStem(low)); if(f!=null) return f;
+    return null;
+  }
+
+  private static String russianStem(String s)
+  {
+    s=normRu(s); if(s.indexOf(' ')>=0) return s;
+    String[] suff={"иями","ями","ами","его","ого","ему","ому","ими","ыми","ешь","ишь","ете","ите","ую","юю","ей","ой","ий","ый","ая","яя","ое","ее","ые","ие","ых","их","ым","им","ом","ем","ах","ях","ам","ям","ов","ев","ть","ти","ся","сь","ала","али","ила","или","ал","ил","ел","ела","ели","ет","ит","ут","ют","ат","ят","ы","и","а","я","у","ю","о","е","ь","й"};
+    for(String x:suff) if(s.length()-x.length()>=3 && s.endsWith(x)) return s.substring(0,s.length()-x.length());
+    return s;
+  }
+
+  private static String latinRussianStem(String s)
+  {
+    s=s.toLowerCase(Locale.ROOT); if(s.indexOf(' ')>=0) return s;
+    String[] suff={"iyami","yami","ami","ogo","ego","emu","omu","imi","ymi","esh","ish","ete","ite","uyu","yuyu","aya","yaya","oe","ee","ye","ie","ykh","ikh","ym","im","om","em","akh","yakh","am","yam","ov","ev","ey","sya","ala","ali","ila","ili","al","il","et","it","ut","yut","at","yat","iy","yy","oy","ti","t","a","i","y","u","o","e"};
+    for(String x:suff) if(s.length()-x.length()>=3 && s.endsWith(x)) return s.substring(0,s.length()-x.length());
+    return s;
+  }
+
+  private static boolean looksLatinRussian(String s)
+  {
+    String x=s.toLowerCase(Locale.ROOT);
+    return x.matches(".*(?:shch|zh|kh|ts|ch|sh|ya|yu|yo).*") || x.matches(".*(?:ogo|emu|ami|ymi|aya|oe|ie|stvo|nie|skiy|skaya|ovat|ivat|it|at|yat)$");
+  }
+
+  private boolean isRussianSemanticUnit(String s)
+  {
+    return isWord(s) || semanticAliases.containsKey(normRu(s)) || semanticLatin.containsKey(s.toLowerCase(Locale.ROOT));
+  }
+
+  private List<String> mergeRussianPhrases(List<String> raw)
+  {
+    List<String> out=new ArrayList<String>();
+    for(int i=0;i<raw.size();)
+    {
+      if(!isWord(raw.get(i))) { out.add(raw.get(i)); i++; continue; }
+      int best=1; String bestText=null;
+      for(int n=Math.min(6,raw.size()-i);n>=2;n--)
+      {
+        boolean ok=true; StringBuilder b=new StringBuilder();
+        for(int j=0;j<n;j++)
+        {
+          String q=raw.get(i+j); if(!isWord(q)){ok=false;break;}
+          if(j>0)b.append(' '); b.append(q);
+        }
+        if(!ok) continue;
+        String q=b.toString();
+        if(semanticAliases.containsKey(normRu(q)) || semanticLatin.containsKey(q.toLowerCase(Locale.ROOT)))
+        { best=n; bestText=q; break; }
+      }
+      if(bestText!=null){out.add(bestText);i+=best;} else {out.add(raw.get(i));i++;}
+    }
+    return out;
+  }
+
   public String translate(String text)
   {
-    return CYR.matcher(text).find() ? russianToSilmir(text) : silmirToRussian(text);
+    if(CYR.matcher(text).find()) return russianToSilmir(text);
+    List<String> tt=tokens(text); int sil=0,ru=0;
+    for(String tok:tt)
+    {
+      if(!isWord(tok)) continue;
+      A a=analyzeSil(tok); if(a!=null && a.confidence>=80) sil++;
+      if(resolveRussian(tok)!=null || looksLatinRussian(tok)) ru++;
+    }
+    return ru>sil ? russianToSilmir(text) : silmirToRussian(text);
   }
 
   public String silmirToRussian(String text)
@@ -149,9 +256,9 @@ public final class SilmirTranslator
 
   public String russianToSilmir(String text)
   {
-    List<String> t = tokens(text);
+    List<String> t = mergeRussianPhrases(tokens(text));
     List<RuForm> info = new ArrayList<RuForm>();
-    for (String s : t) info.add(isWord(s) ? ruForms.get(normRu(s)) : null);
+    for (String s : t) info.add(isRussianSemanticUnit(s) ? resolveRussian(s) : null);
 
     int verb = -1, subj = -1, obj = -1;
     for (int i = 0; i < info.size(); i++)
@@ -185,11 +292,17 @@ public final class SilmirTranslator
     for (int i = 0; i < t.size(); i++)
     {
       String tok = t.get(i);
-      if (!isWord(tok)) { out.add(tok); continue; }
+      if (!isRussianSemanticUnit(tok)) { out.add(tok); continue; }
       String nt = normRu(tok);
       if (RU_PREP.containsKey(nt)) continue;
       if (nt.equals("два") || nt.equals("две") || nt.equals("двух") || nt.equals("двум") || nt.equals("двумя")) continue;
       RuForm f = info.get(i);
+      if (f == null && nt.startsWith("не") && nt.length()>4)
+      {
+        RuForm positive=resolveRussian(nt.substring(2));
+        if(positive!=null && "adjective".equals(positive.pos))
+        { out.add("na"+positive.root); continue; }
+      }
       if (f == null) { out.add(transliterateRuToSil(tok)); continue; }
       if ("particle".equals(f.pos) || "numeral".equals(f.pos)) { out.add(f.root); continue; }
       if ("verb".equals(f.pos))
@@ -250,6 +363,12 @@ public final class SilmirTranslator
   {
     String low = token.toLowerCase(Locale.ROOT);
     if (PRON.containsKey(low)) { A a=new A(token); a.root=low; a.pos="pronoun"; a.ru=PRON.get(low)[0]; a.confidence=100; return a; }
+    RuForm mixedRu = semanticLatin.get(low);
+    if (mixedRu != null)
+    {
+      A a=new A(token); a.root=mixedRu.root; a.pos=mixedRu.pos;
+      Lex e=lex.get(mixedRu.root); a.ru=(e!=null?e.ru:mixedRu.lemma); a.confidence=70; return a;
+    }
     if (SIL_FUNCTION.containsKey(low)) { A a=new A(token); a.root=low; a.pos="particle"; a.ru=SIL_FUNCTION.get(low); a.confidence=100; return a; }
     if (low.equals("tyt") || low.equals("hremem") || low.equals("lavi"))
     { A a=new A(token); a.root=low; a.pos="irregular"; a.ru=low.equals("tyt")?"иди":low.equals("hremem")?"умойся":"в унитазе"; a.confidence=100; return a; }

@@ -1,4 +1,4 @@
-SIL'MIR KEYBOARD v3.1
+SIL'MIR KEYBOARD v4 ULTRA
 ===================
 
 Внутри:
@@ -39,3 +39,14 @@ Settings → Add an alternate layout → Custom layout
 RU→SIL автоматически делает фонетическую запись в алфавите Sil'mir.
 Примеры: Жуковский → źukovskij, чайник → tśajnik, Москва → moskva.
 Это fallback для имен, новых терминов, опечаток и свежих заимствований.
+
+
+V4 ULTRA SEMANTIC ENGINE
+------------------------
+Canonical Sil'mir concepts: 10,350
+Dictionary synonym roots collapsed: 1,200
+Russian semantic families: 317
+Russian semantic alias rows: 12,913
+Existing Russian morphology rows: 49,658
+
+Russian synonyms map to one canonical Sil'mir concept. Generated aliases are rejected if they collide with another explicit Sil'mir meaning. The engine also accepts common Russian Latin transliteration and inflected/stem variants, and matches multi-word aliases before word-by-word translation.

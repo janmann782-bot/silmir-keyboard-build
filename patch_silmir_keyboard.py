@@ -101,9 +101,10 @@ methods = r'''
     if (_silmirTranslator != null)
       return _silmirTranslator;
     try (InputStream lex = getAssets().open("silmir_translation_lexicon.tsv");
-         InputStream forms = getAssets().open("silmir_ru_forms_compact.tsv"))
+         InputStream forms = getAssets().open("silmir_ru_forms_compact.tsv");
+         InputStream semantic = getAssets().open("silmir_semantic_aliases.tsv"))
     {
-      _silmirTranslator = new SilmirTranslator(lex, forms);
+      _silmirTranslator = new SilmirTranslator(lex, forms, semantic);
       return _silmirTranslator;
     }
     catch (IOException e)

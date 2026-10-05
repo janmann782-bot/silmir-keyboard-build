@@ -1,0 +1,12 @@
+{
+  "silmir_roots": 11550,
+  "canonical_concepts": 10350,
+  "dictionary_synonym_roots": 1200,
+  "semantic_families": 317,
+  "semantic_alias_rows": 12943,
+  "safe_generated_aliases": 2229,
+  "dropped_ambiguous_aliases": 118,
+  "dropped_dictionary_conflicts": 119,
+  "existing_russian_morphology_rows": 49658,
+  "curated_irregular_forms": 30
+}
