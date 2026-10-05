@@ -1,6 +1,6 @@
 {
   "language": "Sil'mir",
-  "version": 2,
+  "version": 4,
   "alphabet": [
     "a",
     "æ",
@@ -195,5 +195,23 @@
       "ю": "ju",
       "я": "ja"
     }
+  },
+  "semantic_alias_engine": {
+    "safe_alias_rows": 12913,
+    "semantic_families": 317,
+    "canonical_concepts": 10350,
+    "generated_safe": 2229,
+    "dropped_ambiguous": 118,
+    "dropped_dictionary_conflicts": 119,
+    "lookup": [
+      "exact Russian morphology",
+      "canonical dictionary aliases",
+      "semantic aliases",
+      "Russian stem",
+      "Russian transliteration",
+      "Latin-translit stem",
+      "borrowing fallback"
+    ],
+    "conflict_policy": "Never merge a generated Russian synonym into a different explicit Silmir concept."
   }
 }
