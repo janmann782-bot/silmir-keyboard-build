@@ -1,40 +1,41 @@
-Sil'mir + Unexpected Keyboard custom build kit
-================================================
+SIL'MIR KEYBOARD v3.1
+===================
 
-Extracted headwords: 11550
+Внутри:
+- QWERTY-раскладка Sil'mir
+- a↑æ, e↑ə, o↑ø, s↑ś, z↑ź
+- возвращены обычные символы: ~ ! @ # $ % ^ & * ( ) ` - _ = + { } [ ] | \\ < > . , ? / : ; " '
+- 11 550 слов для подсказок
+- отдельный переводческий словарь из 11 550 корней
+- отдельный индекс русских словоформ
+- полный набор правил грамматики в assets/silmir_rules.json
+- офлайн переводчик RU ↔ Sil'mir
 
-What this does
---------------
-Stable Unexpected Keyboard currently has no bulk personal-dictionary importer.
+КНОПКА ПЕРЕВОДА
+На клавише P: свайп вниз-влево (SW), значок ⇄.
 
-This kit builds from the open personal-dictionary development branch and
-bundles all 11550 Sil'mir headwords into the suggestion system.
+Если текст выделен, ⇄ заменяет выделение переводом.
+Если ничего не выделено, ⇄ переводит текущую строку перед курсором.
+Направление определяется автоматически: кириллица = RU→SIL, Sil'mir/латиница = SIL→RU.
 
-Files
------
-assets/silmir_words.txt
-    One Sil'mir word per line.
+СБОРКА
+Загрузи содержимое этой папки в корень GitHub-репозитория.
+Затем: Actions → Build Silmir Keyboard v3 → Run workflow.
+После зеленой сборки скачай Artifact: Silmir-Keyboard-v3-debug-apk.
 
-Silmir_Unexpected_Keyboard.xml
-    The custom Sil'mir QWERTY layout.
+РАСКЛАДКА
+После установки APK:
+Settings → Add an alternate layout → Custom layout
+и вставь Silmir_Unexpected_Keyboard_v3.xml.
 
-inject_silmir.py
-    Adds the bundled word list to the branch's PersonalDictionary loader.
-
-.github/workflows/build.yml
-    GitHub Actions workflow that builds a DEBUG APK and uploads it as an artifact.
-
-Important
----------
-The resulting debug APK uses the project's .debug application ID, so it can
-normally be installed alongside the stable Unexpected Keyboard.
-
-No usage frequencies were present in the source dictionary, so none were invented.
+ПРИМЕЧАНИЕ
+Переводчик правиловый и офлайн. Sil'mir-морфология разбирается по правилам, а не
+по списку всех готовых форм. Русский синтаксический разбор в v1 эвристический,
+поэтому длинные/неоднозначные предложения иногда потребуют ручной правки.
 
 
-Sil'mir alphabet handling
--------------------------
-The upstream personal-dictionary PR normally folds diacritics for matching.
-That is wrong for Sil'mir because ś, ź, æ, ø and ə are real letters. The patch
-therefore changes PERSONAL-dictionary matching to case-insensitive exact
-Unicode matching, so e.g. s and ś, z and ź remain distinct.
+НЕИЗВЕСТНЫЕ РУССКИЕ СЛОВА
+Если слова нет в переводческом словаре, оно не остается кириллицей.
+RU→SIL автоматически делает фонетическую запись в алфавите Sil'mir.
+Примеры: Жуковский → źukovskij, чайник → tśajnik, Москва → moskva.
+Это fallback для имен, новых терминов, опечаток и свежих заимствований.
