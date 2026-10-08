@@ -64,14 +64,17 @@ if 'SILMIR_TRANSLATE' not in s:
     anchor = '    CHANGE_DICTIONARY,\n'
     if anchor not in s:
         raise SystemExit('KeyValue Event anchor not found')
-    s = s.replace(anchor, anchor + '    SILMIR_TRANSLATE,\n', 1)
+    s = s.replace(anchor, anchor + '    SILMIR_TRANSLATE,\n    SILMIR_RU_TO_SIL,\n    SILMIR_SIL_TO_RU,\n', 1)
 
     anchor = '      case "change_dictionary": return eventKey(0xE01D, Event.CHANGE_DICTIONARY, 0);\n'
     if anchor not in s:
         raise SystemExit('KeyValue special-key anchor not found')
     s = s.replace(
         anchor,
-        anchor + '      case "silmir_translate": return eventKey("⇄", Event.SILMIR_TRANSLATE, FLAG_SMALLER_FONT);\n',
+        anchor
+        + '      case "silmir_translate": return eventKey("⇄", Event.SILMIR_TRANSLATE, FLAG_SMALLER_FONT);\n'
+        + '      case "silmir_ru_to_sil": return eventKey("R→S", Event.SILMIR_RU_TO_SIL, FLAG_SMALLER_FONT);\n'
+        + '      case "silmir_sil_to_ru": return eventKey("S→R", Event.SILMIR_SIL_TO_RU, FLAG_SMALLER_FONT);\n',
         1,
     )
 p.write_text(s, encoding='utf-8')
@@ -101,8 +104,8 @@ methods = r'''
     if (_silmirTranslator != null)
       return _silmirTranslator;
     try (InputStream lex = getAssets().open("silmir_translation_lexicon.tsv");
-         InputStream forms = getAssets().open("silmir_ru_forms_compact.tsv");
-         InputStream semantic = getAssets().open("silmir_semantic_aliases.tsv"))
+         InputStream forms = getAssets().open("silmir_ru_forms_mega.tsv");
+         InputStream semantic = getAssets().open("silmir_semantic_aliases_mega.tsv"))
     {
       _silmirTranslator = new SilmirTranslator(lex, forms, semantic);
       return _silmirTranslator;
@@ -115,8 +118,8 @@ methods = r'''
   }
 
   /** Translate selected text. If nothing is selected, translate the current
-      line before the cursor. Direction is detected automatically. */
-  private void translate_silmir_text()
+      line before the cursor. mode: 0=AUTO, 1=RU→Sil'mir, 2=Sil'mir→RU. */
+  private void translate_silmir_text(int mode)
   {
     InputConnection conn = getCurrentInputConnection();
     SilmirTranslator tr = get_silmir_translator();
@@ -132,7 +135,7 @@ methods = r'''
       source = selected.toString();
     else
     {
-      CharSequence before = conn.getTextBeforeCursor(1024, 0);
+      CharSequence before = conn.getTextBeforeCursor(2048, 0);
       if (before == null || before.length() == 0)
         return;
       String b = before.toString();
@@ -146,7 +149,14 @@ methods = r'''
     if (source.trim().isEmpty())
       return;
 
-    String translated = tr.translate(source.trim());
+    String translated;
+    if (mode == 1)
+      translated = tr.russianToSilmir(source.trim());
+    else if (mode == 2)
+      translated = tr.silmirToRussian(source.trim());
+    else
+      translated = tr.translate(source.trim());
+
     conn.beginBatchEdit();
     if (hasSelection)
       conn.commitText(translated, 1);
@@ -158,7 +168,7 @@ methods = r'''
     conn.endBatchEdit();
   }
 '''
-if 'private void translate_silmir_text()' not in s:
+if 'private void translate_silmir_text(int mode)' not in s:
     anchor = '  public void launch_dictionaries_activity()\n'
     if anchor not in s:
         raise SystemExit('Keyboard2 method anchor not found')
@@ -175,7 +185,15 @@ if 'case SILMIR_TRANSLATE:' not in s:
         anchor,
         anchor + '''
         case SILMIR_TRANSLATE:
-          translate_silmir_text();
+          translate_silmir_text(0);
+          break;
+
+        case SILMIR_RU_TO_SIL:
+          translate_silmir_text(1);
+          break;
+
+        case SILMIR_SIL_TO_RU:
+          translate_silmir_text(2);
           break;
 ''',
         1,
@@ -188,4 +206,4 @@ if not source.exists():
     raise SystemExit('SilmirTranslator.java not found in build kit')
 shutil.copy2(source, SRC / 'SilmirTranslator.java')
 
-print("Sil'mir suggestions + offline translator patched successfully")
+print("Sil'mir MEGA suggestions + morphology + offline translator patched successfully")

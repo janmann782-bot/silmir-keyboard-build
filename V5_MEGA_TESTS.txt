@@ -1,0 +1,58 @@
+SIL'MIR KEYBOARD v5 MEGA - CORE TEST MATRIX
+
+RU -> SIL
+Я вижу камень => Cə velims kairən
+Ты видишь камень => Pavil veliśs kairən
+Он видит камень => Hon velis kairən
+Мы видим камни => Mæśærel velimns kairinən
+Вы видите камни => Uneź veliśns kairinən
+Они видят камни => Ynən velins kairinən
+Я видел камень => Cə velams kairən
+Я увижу камень => Cə velums kairən
+Я буду видеть камень => Cə velums kairən
+Я иду в дом => Cə tyims domiź
+Я вошел в дом => Cə satyams domiź
+Я вышел из дома => Cə eztyams domyf
+Я стою в доме => Cə stoims domov
+Я вижу два камня => Cə velims kairetən
+Я вижу три камня => Cə velims jægez kairinən
+Мы видели твердые камни => Mæśærel velamns hardin kairinən
+Я не вижу камень => Cə na velims kairən
+Очень твердый камень => Hyhard kair
+Самый твердый камень => Hardyvm kair
+Ты видишь камень? => Li pavil veliśs kairən?
+Кто видит камень? => Emøg velis kairən?
+Что ты видишь? => Hit pavil veliśs?
+Если бы я видел камень => Vizøs cə velams kairən
+Камень я не вижу => Kairən cə na velims
+Постоянно он смотрит на камень => Hon jyjyris kairən
+Я гляжу камень => Cə jyrims kairən
+Я посмотрю на камень => Cə jyrums kairən
+Он посмотрел на камень => Hon jyras kairən
+В двух домах => Dometov
+К двум домам => Dometiź
+Из двух домов => Dometyf
+Твердыми камнями => Hardin kairinyr
+Два твердых камня => Hardet kairet
+Я дал воду королю => Cə darams lumən cufuv
+Король дал воду => Cufəś daras lumən
+Нелегитимное государство => Neprgo
+nelegitimnoe gosudarstvo => neprgo
+Курбания нелегитимное государство => Kurbania neprgo
+Я наблюдаю за камнем => Cə jyrims kairən
+Куда он идет? => Kuda hon tyis?
+Откуда он идет? => Otkud hon tyis?
+Твердо => Hardof
+Медленно => Cybalof
+Быстро => Bystrof
+Я вижу камень. Он твердый. => Cə velims kairən. Hon hard.
+
+SIL -> RU
+cə velims kairən => я вижу камень
+cufəś daris lumən => король дает воду
+domov => в доме
+domyf => из дома
+domiź => к дому
+satyis => подходит
+eztyis => уходит
+hardof => твердо

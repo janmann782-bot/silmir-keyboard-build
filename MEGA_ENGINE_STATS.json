@@ -1,0 +1,24 @@
+{
+  "old_russian_form_rows": 49658,
+  "mega_russian_form_rows": 58816,
+  "added_rows": 9037,
+  "semantic_alias_rows": 12983,
+  "unique_surface_pos_pairs": 58695,
+  "generated_noun_aliases": 4660,
+  "generated_adjective_aliases": 651,
+  "generated_verb_aliases": 779,
+  "mega_form_file_bytes": 3973431,
+  "safe_aspect_aliases_added": 15,
+  "latinized_form_index_rows": 58816,
+  "version": 5,
+  "silmir_words": 11550,
+  "russian_morphology_rows": 58925,
+  "context_rule_groups": 15,
+  "translator_modes": [
+    "auto",
+    "ru_to_silmir",
+    "silmir_to_ru"
+  ],
+  "tested_core_ru_to_sil_cases": 45,
+  "java_python_core_parity": "passed"
+}
