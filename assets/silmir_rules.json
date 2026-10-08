@@ -1,6 +1,6 @@
 {
   "language": "Sil'mir",
-  "version": 4,
+  "version": 5,
   "alphabet": [
     "a",
     "æ",
@@ -213,5 +213,18 @@
       "borrowing fallback"
     ],
     "conflict_policy": "Never merge a generated Russian synonym into a different explicit Silmir concept."
+  },
+  "translator_engine": {
+    "type": "offline rule-based bidirectional",
+    "russian_morphology_asset": "silmir_ru_forms_mega.tsv",
+    "semantic_alias_asset": "silmir_semantic_aliases_mega.tsv",
+    "context_rules_asset": "silmir_context_rules.json",
+    "unknown_ru_fallback": "phonetic Sil'mir transliteration",
+    "unknown_sil_fallback": "Russian-readable transliteration",
+    "modes": [
+      "auto",
+      "forced_ru_to_silmir",
+      "forced_silmir_to_ru"
+    ]
   }
 }

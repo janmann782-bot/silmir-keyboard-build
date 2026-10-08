@@ -1,0 +1,118 @@
+{
+  "version": 5,
+  "prepositions": {
+    "location_or_direction": [
+      "в",
+      "во",
+      "на"
+    ],
+    "directional": [
+      "к",
+      "ко"
+    ],
+    "ablative": [
+      "из",
+      "от",
+      "ото",
+      "с",
+      "со"
+    ],
+    "locative": [
+      "при"
+    ]
+  },
+  "motion_lemmas": [
+    "идти",
+    "ходить",
+    "ехать",
+    "бежать",
+    "лететь",
+    "плыть",
+    "двигаться",
+    "направляться",
+    "приходить",
+    "уходить",
+    "входить",
+    "выходить",
+    "подходить",
+    "отходить"
+  ],
+  "future_aux": {
+    "буду": [
+      "1",
+      "sg"
+    ],
+    "будешь": [
+      "2",
+      "sg"
+    ],
+    "будет": [
+      "3",
+      "sg"
+    ],
+    "будем": [
+      "1",
+      "pl"
+    ],
+    "будете": [
+      "2",
+      "pl"
+    ],
+    "будут": [
+      "3",
+      "pl"
+    ]
+  },
+  "habitual_markers": [
+    "обычно",
+    "регулярно",
+    "постоянно"
+  ],
+  "intensifiers": [
+    "очень",
+    "крайне",
+    "весьма"
+  ],
+  "verb_intensifiers": [
+    "пристально"
+  ],
+  "degree_markers": {
+    "более": "comparative",
+    "самый": "superlative",
+    "самая": "superlative",
+    "самое": "superlative",
+    "самые": "superlative",
+    "слегка": "attenuative",
+    "слишком": "excessive"
+  },
+  "yes_no_question_particle": "li",
+  "negative_particle": "na",
+  "conditional_particle": "vizøs",
+  "dual_forms": [
+    "два",
+    "две",
+    "двух",
+    "двум",
+    "двумя"
+  ],
+  "plural_numerals": [
+    "три",
+    "четыре",
+    "пять",
+    "шесть",
+    "семь",
+    "восемь",
+    "девять",
+    "десять"
+  ],
+  "silmir_motion_prefixes": {
+    "toward": "sa",
+    "away": "ez"
+  },
+  "notes": [
+    "Russian в/во/на map to Sil'mir locative for Russian prepositional/locative forms and directional for accusative/destination contexts.",
+    "Russian numeral two maps to Sil'mir dual; numerals three and above force plural rather than copying Russian genitive government.",
+    "Russian analytic future is collapsed into the Sil'mir future tense.",
+    "Past gender distinctions disappear because Sil'mir finite verbs encode person/number rather than Russian past gender."
+  ]
+}
