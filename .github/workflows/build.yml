@@ -6,7 +6,7 @@ on:
     paths:
       - "assets/**"
       - "build_chunks/**"
-      - "build_v7/**"
+      - "build_v7/**"\n      - "build_v7_b64/**"
       - "compiler/**"
       - "tests/**"
       - "Silmir_Unexpected_Keyboard_v7_PIPELINE.xml"
@@ -26,7 +26,10 @@ jobs:
         run: |
           cat silmir-kit/build_chunks/SilmirTranslator.java.part* > silmir-kit/SilmirTranslator.java
           cat silmir-kit/build_chunks/patch_silmir_keyboard.py.part* > silmir-kit/patch_silmir_keyboard.py
-          cat silmir-kit/build_v7/delta_v6_2_to_v7.patch.part* > /tmp/silmir-v7.patch
+          : > /tmp/silmir-v7.patch
+          for f in silmir-kit/build_v7_b64/delta*.b64; do
+            base64 -d "$f" >> /tmp/silmir-v7.patch
+          done
           cd silmir-kit
           patch -p1 < /tmp/silmir-v7.patch
           python3 -m py_compile patch_silmir_keyboard.py
