@@ -6,7 +6,8 @@ on:
     paths:
       - "assets/**"
       - "build_chunks/**"
-      - "build_v7/**"\n      - "build_v7_b64/**"
+      - "build_v7/**"
+      - "build_v7_b64/**"
       - "compiler/**"
       - "tests/**"
       - "Silmir_Unexpected_Keyboard_v7_PIPELINE.xml"
