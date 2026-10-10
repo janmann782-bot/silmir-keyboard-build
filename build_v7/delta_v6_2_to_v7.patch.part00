@@ -1,0 +1,133 @@
+--- a/SilmirTranslator.java
++++ b/SilmirTranslator.java
+@@ -18,10 +18,12 @@
+ import java.util.regex.Matcher;
+ import java.util.regex.Pattern;
+ 
+-/** Offline MEGA Sil'mir <-> Russian translator.
++/** Sil'mir Translator v7: concept-centred offline MT pipeline.
+  *
+- * The Sil'mir side is grammar-driven. The Russian side uses an expanded
+- * morphology/semantic index plus sentence-level heuristics. No network calls.
++ * Stages: tokenise -> Russian morphology -> ambiguity/sense selection ->
++ * multiword/structural transfer -> Sil'mir morphological generation.
++ * The target grammar remains rule-driven; Russian surface forms are never the
++ * source of truth for a Sil'mir concept. No network calls.
+  */
+ public final class SilmirTranslator
+ {
+@@ -106,9 +108,10 @@
+     FUTURE_AUX.put("будем",new String[]{"1","pl"}); FUTURE_AUX.put("будете",new String[]{"2","pl"}); FUTURE_AUX.put("будут",new String[]{"3","pl"});
+   }
+ 
+-  public SilmirTranslator(InputStream lexiconTsv, InputStream russianFormsTsv, InputStream semanticAliasesTsv, InputStream contextSenseTsv) throws IOException
++  public SilmirTranslator(InputStream lexiconTsv, InputStream russianFormsTsv, InputStream semanticAliasesTsv, InputStream contextSenseTsv, InputStream conceptsTsv) throws IOException
+   {
+     loadLexicon(lexiconTsv);
++    loadConcepts(conceptsTsv);
+     loadAliases(semanticAliasesTsv);
+     loadForms(russianFormsTsv);
+     loadSenseRules(contextSenseTsv);
+@@ -164,6 +167,33 @@
+     br.close();
+   }
+ 
++  /** Canonical concept layer. One Sil'mir root is one concept; Russian aliases
++      are merely surface realisations of that concept. */
++  private void loadConcepts(InputStream in) throws IOException
++  {
++    BufferedReader br=new BufferedReader(new InputStreamReader(in,StandardCharsets.UTF_8));
++    br.readLine();String line;
++    while((line=br.readLine())!=null)
++    {
++      String[] c=line.split("\t",-1);if(c.length<7)continue;
++      String root=rootRef(c[1]),pos=canonPos(c[2]),canonical=normRu(c[3]);
++      Lex e=lexget(root);
++      if(e!=null&&!canonical.isEmpty()&&(root.equals("kevir")||root.equals("Kevirytsyt")||root.equals("møcok")))e.primary=pooled(c[3]);
++      String aliases=c[6];
++      if(!canonical.isEmpty())aliases=canonical+(aliases.isEmpty()?"":"|"+aliases);
++      for(String a:aliases.split("\|"))
++      {
++        String k=normRu(a);if(k.isEmpty())continue;
++        RuForm f=new RuForm();f.root=root;f.pos=pos;f.number="sg";
++        f.morph=pos.equals("verb")?"verb:infinitive:3:active":"nom";
++        f.lemma=pooled(canonical.isEmpty()?k:canonical);
++        f.priority=(root.equals("kevir")||root.equals("Kevirytsyt")||root.equals("møcok"))?-8:40;
++        putCandidate(aliasCyr,aliasAmbCyr,k,f);
++      }
++    }
++    br.close();
++  }
++
+   private static boolean sameCandidate(RuForm a,RuForm b)
+   {
+     return a.root.equals(b.root)&&a.pos.equals(b.pos)&&a.number.equals(b.number)&&a.morph.equals(b.morph);
+@@ -323,12 +353,125 @@
+     if(token==null||token.isEmpty())return null;String n=normRu(token);RuForm p=specialPronoun(n);if(p!=null)return p;RuForm q=specialQuestion(n);if(q!=null)return q;RuForm d=specialDirectional(n);if(d!=null)return d;RuForm f=formsCyr.get(n);if(f!=null)return f;return aliasCyr.get(n);
+   }
+ 
++  private static RuForm synthetic(String root,String pos,String number,String morph,String lemma,int priority)
++  {
++    RuForm f=new RuForm();f.root=root;f.pos=pos;f.number=number;f.morph=morph;f.lemma=lemma;f.priority=priority;return f;
++  }
++
++  private RuForm exactNounConcept(String lemma)
++  {
++    RuForm f=aliasCyr.get(normRu(lemma));
++    if(f!=null&&f.pos.equals("noun"))return f;
++    f=formsCyr.get(normRu(lemma));
++    if(f!=null&&f.pos.equals("noun")&&f.morph.equals("nom"))return f;
++    return null;
++  }
++
++  /** Productive Russian -ск-/-н- adjective analysis. The source adjective is
++      reduced to a noun concept; Sil'mir then derives the adjective with -yb. */
++  private RuForm deriveRelationalAdjective(String word)
++  {
++    String w=normRu(word);
++    String[][] endings={
++      {"скими","pl"},{"ских","pl"},{"ские","pl"},{"ским","pl"},
++      {"ского","sg"},{"скому","sg"},{"ском","sg"},{"ской","sg"},{"скую","sg"},
++      {"ская","sg"},{"ское","sg"},{"ский","sg"},
++      {"ными","pl"},{"ных","pl"},{"ные","pl"},{"ным","pl"},
++      {"ного","sg"},{"ному","sg"},{"ном","sg"},{"ной","sg"},{"ную","sg"},
++      {"ная","sg"},{"ное","sg"},{"ный","sg"}
++    };
++    for(String[] x:endings)if(w.endsWith(x[0])&&w.length()>x[0].length()+1)
++    {
++      String base=w.substring(0,w.length()-x[0].length());
++      RuForm noun=exactNounConcept(base);
++      if(noun!=null)return synthetic(noun.root,"adjective",x[1],"derived_adj:yb",base+"ский",3);
++    }
++    return null;
++  }
++
++  /** Recover common Russian noun inflections from a known concept. This is a
++      fallback after the exact morphology index, not a replacement for it. */
++  private RuForm deriveKnownNounInflection(String word)
++  {
++    String w=normRu(word);
++    String[][] endings={
++      {"ами","pl","ins"},{"ями","pl","ins"},{"ах","pl","loc"},{"ях","pl","loc"},
++      {"ам","pl","dat"},{"ям","pl","dat"},{"ов","pl","gen"},{"ев","pl","gen"},
++      {"ом","sg","ins"},{"ем","sg","ins"},{"у","sg","dat"},{"ю","sg","dat"},
++      {"а","sg","gen"},{"я","sg","gen"},{"е","sg","loc"},{"ы","pl","nom"},{"и","pl","nom"}
++    };
++    for(String[] x:endings)if(w.endsWith(x[0])&&w.length()>x[0].length()+2)
++    {
++      String stem=w.substring(0,w.length()-x[0].length());
++      RuForm noun=exactNounConcept(stem);
++      if(noun!=null)return synthetic(noun.root,"noun",x[1],x[2],stem,5);
++    }
++    return null;
++  }
++
++  private static boolean looksRussianNounContext(List<String> t,int i)
++  {
++    String prev=previousWord(t,i);
++    if(PREP_SCAN.contains(prev)||prev.equals("время"))return true;
++    if(i>0)
++    {
++      String p=normRu(t.get(i-1));
++      if(p.matches(".*(?:ого|его|ой|ых|их|ыми|ими|скому|скому)$"))return true;
++    }
