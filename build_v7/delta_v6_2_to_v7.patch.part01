@@ -1,0 +1,90 @@
++    return false;
++  }
++
++  /** Unknown Russian noun fallback: strip only a conservative inflection and
++      borrow the lemma, rather than borrowing the already-inflected surface. */
++  private RuForm deriveBorrowedNoun(List<String> t,int i,String token)
++  {
++    String w=normRu(token);if(!w.matches("[а-я-]+"))return null;
++    String lemma=w,morph="nom",num="sg";
++    boolean ctx=looksRussianNounContext(t,i);
++    if(ctx)
++    {
++      if(w.endsWith("ами")&&w.length()>5){lemma=w.substring(0,w.length()-3);morph="ins";num="pl";}
++      else if(w.endsWith("ями")&&w.length()>5){lemma=w.substring(0,w.length()-3);morph="ins";num="pl";}
++      else if(w.endsWith("ах")&&w.length()>4){lemma=w.substring(0,w.length()-2);morph="loc";num="pl";}
++      else if(w.endsWith("ях")&&w.length()>4){lemma=w.substring(0,w.length()-2);morph="loc";num="pl";}
++      else if(w.endsWith("ов")&&w.length()>4){lemma=w.substring(0,w.length()-2);morph="gen";num="pl";}
++      else if(w.endsWith("ам")&&w.length()>4){lemma=w.substring(0,w.length()-2);morph="dat";num="pl";}
++      else if(w.endsWith("ям")&&w.length()>4){lemma=w.substring(0,w.length()-2);morph="dat";num="pl";}
++      else if(w.endsWith("ом")&&w.length()>4){lemma=w.substring(0,w.length()-2);morph="ins";}
++      else if(w.endsWith("ем")&&w.length()>4){lemma=w.substring(0,w.length()-2);morph="ins";}
++      else if(w.endsWith("а")&&w.length()>4){lemma=w.substring(0,w.length()-1);morph="gen";}
++      else if(w.endsWith("у")&&w.length()>4){lemma=w.substring(0,w.length()-1);morph="dat";}
++      else if(w.endsWith("е")&&w.length()>4){lemma=w.substring(0,w.length()-1);morph="loc";}
++    }
++    String root=transliterateRuToSil(lemma);
++    return synthetic(root,"noun",num,morph,lemma,80);
++  }
++
++  private RuForm deriveRussianFallback(List<String> t,int i,String token)
++  {
++    String raw=token,n=normRu(token);
++    RuForm f=deriveRelationalAdjective(n);if(f!=null)return f;
++    f=deriveKnownNounInflection(n);if(f!=null)return f;
++    // Latin Russian gets exactly the same morphology pipeline after reversal.
++    String rev=reverseLatinRussian(token.toLowerCase(Locale.ROOT));
++    if(!rev.equals(token.toLowerCase(Locale.ROOT)))
++    {
++      f=deriveRelationalAdjective(rev);if(f!=null)return f;
++      f=deriveKnownNounInflection(rev);if(f!=null)return f;
++      if(looksRussianNounContext(t,i))return deriveBorrowedNoun(t,i,rev);
++    }
++    if(looksRussianNounContext(t,i)||Character.isUpperCase(raw.charAt(0)))return deriveBorrowedNoun(t,i,n);
++    return null;
++  }
++
+   private RuForm resolveRussian(String token){return resolveRussian(token,null);}
+   private RuForm resolveRussian(String token,String prefer)
+   {
+     String n=normRu(token);RuForm gp=specialPronoun(n);if(gp!=null)return gp;RuForm sp=specialQuestion(n);if(sp!=null)return sp;RuForm sd=specialDirectional(n);if(sd!=null)return sd;
+     RuForm f=bestCandidate(candidates(formsCyr,formsAmb,n),prefer,null,-1);if(f!=null)return f;
+     f=bestCandidate(candidates(aliasCyr,aliasAmbCyr,n),prefer,null,-1);if(f!=null)return f;
++    f=deriveRelationalAdjective(n);if(f!=null&&(prefer==null||prefer.equals(f.pos)))return f;
++    f=deriveKnownNounInflection(n);if(f!=null&&(prefer==null||prefer.equals(f.pos)))return f;
+     f=aliasStem.get(russianStem(n));if(f!=null&&(prefer==null||prefer.equals(f.pos)))return f;
+     String l=token.toLowerCase(Locale.ROOT);String rev=reverseLatinRussian(l);if(!rev.equals(l))
+     {
+@@ -350,6 +493,7 @@
+     f=bestCandidate(candidates(aliasCyr,aliasAmbCyr,n),null,t,i);if(f!=null)return f;
+     String l=token.toLowerCase(Locale.ROOT),rev=reverseLatinRussian(l);if(!rev.equals(l)){RuForm rp=specialPronoun(normRu(rev));if(rp!=null)return rp;RuForm rq=specialQuestion(normRu(rev));if(rq!=null)return rq;RuForm rd=specialDirectional(normRu(rev));if(rd!=null)return rd;f=bestCandidate(candidates(formsCyr,formsAmb,normRu(rev)),null,t,i);if(f!=null)return f;f=bestCandidate(candidates(aliasCyr,aliasAmbCyr,normRu(rev)),null,t,i);if(f!=null)return f;}
+     f=bestCandidate(candidates(aliasLat,aliasAmbLat,l),null,t,i);if(f!=null)return f;
++    f=deriveRussianFallback(t,i,token);if(f!=null)return f;
+     f=aliasStem.get(russianStem(n));return f;
+   }
+   private RuForm applyContextSense(List<String> t,int i,RuForm f,Set<Integer> consumed)
+@@ -569,6 +713,21 @@
+     Map<Integer,String[]> future=new HashMap<Integer,String[]>();HashSet<Integer> skip=new HashSet<Integer>();skip.addAll(senseSkip);
+     for(int i=0;i<n;i++)if(isWord(t.get(i))&&FUTURE_AUX.containsKey(normRu(t.get(i))))for(int j=i+1;j<n&&j<i+6;j++)if(info.get(j)!=null&&info.get(j).pos.equals("verb")){future.put(j,FUTURE_AUX.get(normRu(t.get(i))));skip.add(i);break;}
+ 
++    // Structural transfer: Russian "во время X" is not translated as two
++    // independent words. It becomes "X-GEN time-LOC" in Sil'mir.
++    HashSet<Integer> duringHeads=new HashSet<Integer>();
++    for(int i=0;i+1<n;i++)if(normRu(t.get(i)).equals("во")&&normRu(t.get(i+1)).equals("время"))
++    {
++      skip.add(i);skip.add(i+1);
++      for(int j=i+2;j<n;j++)
++      {
++        if(t.get(j).matches("[.!?;]"))break;
++        RuForm x=info.get(j);
++        if(x!=null&&(x.pos.equals("noun")||x.pos.equals("pronoun"))){duringHeads.add(j);break;}
++        if(x!=null&&x.pos.equals("verb"))break;
++      }
++    }
++
+     ArrayList<Integer> verbs=new ArrayList<Integer>();for(int i=0;i<n;i++){RuForm x=info.get(i);if(x!=null&&x.pos.equals("verb")&&x.morph.startsWith("verb:")&&(!x.morph.contains(":infinitive:")||future.containsKey(i)))verbs.add(i);}
+     Map<Integer,Integer> subj=new HashMap<Integer,Integer>(),obj=new HashMap<Integer,Integer>();Integer lastSubj=null;
+     for(int vi:verbs)
+@@ -627,14 +786,17 @@
+         String prep=prepBefore(t,i);String govLemma=(gv!=null&&info.get(gv)!=null)?normRu(info.get(gv).lemma):"";
+         if((prep.equals("на")||prep.equals("в")||prep.equals("во")||prep.equals("за"))&&VIEW.contains(govLemma))pc="accusative";
