@@ -1,0 +1,216 @@
+    else
+    {
+      CharSequence before = conn.getTextBeforeCursor(4096, 0);
+      if (before == null || before.length() == 0)
+        return;
+      String b = before.toString();
+      int start = b.lastIndexOf('\n') + 1;
+      rawSource = b.substring(start);
+    }
+
+    final String source = rawSource.trim();
+    if (source.isEmpty())
+      return;
+
+    final int seq = ++_silmirTranslateSeq;
+    final int requestedMode = mode;
+    _silmirExecutor.execute(new Runnable()
+    {
+      @Override public void run()
+      {
+        String translated = null;
+        Throwable failure = null;
+        try
+        {
+          String key = silmir_tm_key(requestedMode, source);
+          translated = silmir_tm().getString(key, null);
+          if (translated == null)
+          {
+            SilmirTranslator tr = get_silmir_translator();
+            if (tr == null)
+              return;
+            translated = translate_silmir_bounded(tr, source, requestedMode);
+          }
+        }
+        catch (Throwable e)
+        {
+          failure = e;
+        }
+
+        final String result = translated;
+        final Throwable error = failure;
+        _handler.post(new Runnable()
+        {
+          @Override public void run()
+          {
+            if (seq != _silmirTranslateSeq)
+              return;
+            if (error != null || result == null)
+            {
+              if (error instanceof OutOfMemoryError)
+              {
+                _silmirTranslator = null;
+                Log.e("UnexpectedKeyboard", "Sil'mir translation OOM", error);
+                android.widget.Toast.makeText(Keyboard2.this, "Sil'mir: не хватило памяти", android.widget.Toast.LENGTH_SHORT).show();
+              }
+              else
+              {
+                Log.e("UnexpectedKeyboard", "Sil'mir translation failed", error);
+                android.widget.Toast.makeText(Keyboard2.this, "Sil'mir: перевод не выполнен", android.widget.Toast.LENGTH_SHORT).show();
+              }
+              return;
+            }
+
+            InputConnection live = getCurrentInputConnection();
+            if (live == null)
+              return;
+
+            // Do not overwrite newer user edits while translation was running.
+            if (hasSelection)
+            {
+              CharSequence now = live.getSelectedText(0);
+              if (now == null || !now.toString().trim().equals(source))
+              {
+                android.widget.Toast.makeText(Keyboard2.this, "Sil'mir: текст уже изменен", android.widget.Toast.LENGTH_SHORT).show();
+                return;
+              }
+            }
+            else
+            {
+              CharSequence before = live.getTextBeforeCursor(rawSource.length(), 0);
+              if (before == null || !before.toString().equals(rawSource))
+              {
+                android.widget.Toast.makeText(Keyboard2.this, "Sil'mir: строка уже изменена", android.widget.Toast.LENGTH_SHORT).show();
+                return;
+              }
+            }
+
+            _silmirLastSource = source;
+            _silmirLastOutput = result;
+            _silmirLastMode = requestedMode;
+
+            live.beginBatchEdit();
+            if (hasSelection)
+              live.commitText(result, 1);
+            else
+            {
+              live.deleteSurroundingText(rawSource.length(), 0);
+              live.commitText(result, 1);
+            }
+            live.endBatchEdit();
+          }
+        });
+      }
+    });
+  }
+
+  /** Save the manually corrected current selection/line as an exact local
+      override for the last translation. Nothing is sent anywhere. */
+  private void learn_silmir_translation()
+  {
+    if (_silmirLastSource == null)
+      return;
+    InputConnection conn = getCurrentInputConnection();
+    if (conn == null)
+      return;
+    CharSequence selected = conn.getSelectedText(0);
+    String corrected = null;
+    if (selected != null && selected.length() > 0)
+      corrected = selected.toString().trim();
+    else
+    {
+      CharSequence before = conn.getTextBeforeCursor(4096, 0);
+      if (before != null)
+      {
+        String b = before.toString();
+        int start = b.lastIndexOf('\n') + 1;
+        corrected = b.substring(start).trim();
+      }
+    }
+    if (corrected == null || corrected.isEmpty())
+      return;
+
+    SharedPreferences p = silmir_tm();
+    SharedPreferences.Editor e = p.edit();
+    if (p.getAll().size() >= 300)
+      for (String k : p.getAll().keySet()) { e.remove(k); break; }
+    e.putString(silmir_tm_key(_silmirLastMode, _silmirLastSource), corrected).apply();
+    _silmirLastOutput = corrected;
+    android.widget.Toast.makeText(this, "Sil'mir: перевод запомнен", android.widget.Toast.LENGTH_SHORT).show();
+  }
+
+  private void forget_silmir_translation()
+  {
+    if (_silmirLastSource == null)
+      return;
+    silmir_tm().edit().remove(silmir_tm_key(_silmirLastMode, _silmirLastSource)).apply();
+    android.widget.Toast.makeText(this, "Sil'mir: вариант забыт", android.widget.Toast.LENGTH_SHORT).show();
+  }
+'''
+if 'private void translate_silmir_text(int mode)' not in s:
+    anchor = '  public void launch_dictionaries_activity()\n'
+    if anchor not in s:
+        raise SystemExit('Keyboard2 method anchor not found')
+    s = s.replace(anchor, methods + '\n' + anchor, 1)
+
+if 'case SILMIR_TRANSLATE:' not in s:
+    anchor = '''        case CHANGE_DICTIONARY:
+          new DictionarySwitcher(Keyboard2.this, _dictionaries, this).choose();
+          break;
+'''
+    if anchor not in s:
+        raise SystemExit('Keyboard2 event anchor not found')
+    s = s.replace(
+        anchor,
+        anchor + '''
+        case SILMIR_TRANSLATE:
+          translate_silmir_text(0);
+          break;
+
+        case SILMIR_RU_TO_SIL:
+          translate_silmir_text(1);
+          break;
+
+        case SILMIR_SIL_TO_RU:
+          translate_silmir_text(2);
+          break;
+
+        case SILMIR_LEARN:
+          learn_silmir_translation();
+          break;
+
+        case SILMIR_FORGET:
+          forget_silmir_translation();
+          break;
+''',
+        1,
+    )
+# Cancel pending translation when Android destroys the IME process/view.
+destroy_old = '''  @Override
+  public void onDestroy() {
+    super.onDestroy();
+
+    _foldStateTracker.close();
+  }'''
+destroy_new = '''  @Override
+  public void onDestroy() {
+    super.onDestroy();
+
+    _silmirTranslateSeq++;
+    _silmirExecutor.shutdownNow();
+    _silmirTranslator = null;
+    _foldStateTracker.close();
+  }'''
+if destroy_new not in s:
+    if destroy_old not in s:
+        raise SystemExit('Keyboard2 onDestroy anchor not found')
+    s = s.replace(destroy_old, destroy_new, 1)
+p.write_text(s, encoding='utf-8')
+
+# 5. Add optimized Java translator engine.
+source = Path('../silmir-kit/SilmirTranslator.java')
+if not source.exists():
+    raise SystemExit('SilmirTranslator.java not found in build kit')
+shutil.copy2(source, SRC / 'SilmirTranslator.java')
+
+print("Sil'mir v6.2 CONTEXT async low-memory translator patched successfully")
