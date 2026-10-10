@@ -33,6 +33,8 @@ jobs:
           done
           cd silmir-kit
           patch -p1 < /tmp/silmir-v7.patch
+          base64 -d build_v7_b64/memopt.b64 > /tmp/silmir-v7-mem.patch
+          patch -p1 < /tmp/silmir-v7-mem.patch
           python3 -m py_compile patch_silmir_keyboard.py
           test -s SilmirTranslator.java
           test -s patch_silmir_keyboard.py
