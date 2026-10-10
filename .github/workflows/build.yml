@@ -1,4 +1,4 @@
-name: Build Silmir Keyboard v5 MEGA
+name: Build Silmir Keyboard v6.2 CONTEXT
 
 on:
   workflow_dispatch:
@@ -7,6 +7,7 @@ on:
       - "assets/**"
       - "SilmirTranslator.java"
       - "patch_silmir_keyboard.py"
+      - "Silmir_Unexpected_Keyboard_v6_2_CONTEXT.xml"
       - ".github/workflows/build.yml"
 
 jobs:
@@ -41,12 +42,22 @@ jobs:
           cp silmir-kit/assets/silmir_words.txt keyboard/assets/silmir_words.txt
           cp silmir-kit/assets/silmir_translation_lexicon.tsv keyboard/assets/silmir_translation_lexicon.tsv
           cp silmir-kit/assets/silmir_ru_forms_mega.tsv keyboard/assets/silmir_ru_forms_mega.tsv
-          cp silmir-kit/assets/silmir_rules.json keyboard/assets/silmir_rules.json
-          cp silmir-kit/assets/silmir_context_rules.json keyboard/assets/silmir_context_rules.json
           cp silmir-kit/assets/silmir_semantic_aliases_mega.tsv keyboard/assets/silmir_semantic_aliases_mega.tsv
+          cp silmir-kit/assets/silmir_context_senses_v6.tsv keyboard/assets/silmir_context_senses_v6.tsv
+          cp silmir-kit/assets/silmir_rules.json keyboard/assets/silmir_rules.json
           cp silmir-kit/patch_silmir_keyboard.py keyboard/patch_silmir_keyboard.py
           cd keyboard
           python3 patch_silmir_keyboard.py
+
+      - name: Stress-test Silmir translator in 20 MB heap
+        shell: bash
+        run: |
+          mkdir -p /tmp/silmir-test/juloo/keyboard2
+          cp silmir-kit/SilmirTranslator.java /tmp/silmir-test/juloo/keyboard2/SilmirTranslator.java
+          cp silmir-kit/tests/TestSilmirTranslator.java /tmp/silmir-test/juloo/keyboard2/TestSilmirTranslator.java
+          cd /tmp/silmir-test
+          javac juloo/keyboard2/*.java
+          java -Xmx20m -Dfile.encoding=UTF-8 juloo.keyboard2.TestSilmirTranslator             "$GITHUB_WORKSPACE/silmir-kit/assets/silmir_translation_lexicon.tsv"             "$GITHUB_WORKSPACE/silmir-kit/assets/silmir_ru_forms_mega.tsv"             "$GITHUB_WORKSPACE/silmir-kit/assets/silmir_semantic_aliases_mega.tsv"             "$GITHUB_WORKSPACE/silmir-kit/assets/silmir_context_senses_v6.tsv"             "$GITHUB_WORKSPACE/silmir-kit/tests/v6_cases.tsv"
 
       - name: Build debug APK
         shell: bash
@@ -58,5 +69,5 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Silmir-Keyboard-v5-MEGA-debug-apk
+          name: Silmir-Keyboard-v6.2-CONTEXT-debug-apk
           path: keyboard/build/outputs/apk/debug/*.apk
