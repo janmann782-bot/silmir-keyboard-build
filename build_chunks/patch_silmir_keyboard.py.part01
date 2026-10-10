@@ -1,0 +1,246 @@
+#!/usr/bin/env python3
+from pathlib import Path
+import re, shutil
+
+ROOT = Path('.')
+SRC = ROOT / 'srcs/juloo.keyboard2'
+
+# 1. Bundle Sil'mir words into personal suggestions.
+p = SRC / 'Config.java'
+s = p.read_text(encoding='utf-8')
+needle_import = 'import java.util.Map;\n'
+imports = (
+    'import java.io.BufferedReader;\n'
+    'import java.io.IOException;\n'
+    'import java.io.InputStreamReader;\n'
+    'import java.nio.charset.StandardCharsets;\n'
+)
+if imports not in s:
+    if needle_import not in s:
+        raise SystemExit('Config.java import anchor not found')
+    s = s.replace(needle_import, needle_import + imports, 1)
+# Cache bundled Sil'mir suggestions. Config.refresh() runs frequently, so
+# repeatedly rereading 11,550 words created avoidable allocation churn.
+field_anchor = 'public final class Config\n{\n'
+field = '  private static List<PersonalDictionary.Entry> _silmirBundledEntries = null;\n'
+if field not in s:
+    if field_anchor not in s:
+        raise SystemExit('Config class anchor not found')
+    s = s.replace(field_anchor, field_anchor + field, 1)
+
+old = 'personal_dictionary = new PersonalDictionary(PersonalDictionaryPreference.get(_prefs));'
+new = '''List<PersonalDictionary.Entry> silmir_entries =
+        new ArrayList<PersonalDictionary.Entry>(PersonalDictionaryPreference.get(_prefs));
+    if (suggestions_enabled)
+    {
+      if (_silmirBundledEntries == null)
+      {
+        List<PersonalDictionary.Entry> bundled = new ArrayList<PersonalDictionary.Entry>();
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(
+            res.getAssets().open("silmir_words.txt"), StandardCharsets.UTF_8)))
+        {
+          String line;
+          while ((line = reader.readLine()) != null)
+          {
+            line = line.trim();
+            if (!line.isEmpty())
+              bundled.add(new PersonalDictionary.Entry(line, ""));
+          }
+        }
+        catch (IOException ignored) {}
+        _silmirBundledEntries = bundled;
+      }
+      silmir_entries.addAll(_silmirBundledEntries);
+    }
+    personal_dictionary = new PersonalDictionary(silmir_entries);'''
+if new not in s:
+    if old not in s:
+        raise SystemExit('Personal dictionary anchor not found')
+    s = s.replace(old, new, 1)
+p.write_text(s, encoding='utf-8')
+
+# 2. Sil'mir letters are real distinct letters, not accent variants.
+p = SRC / 'PersonalDictionary.java'
+s = p.read_text(encoding='utf-8')
+pattern = re.compile(
+    r'static String normalized\(String w\)\s*\{.*?return b\.toString\(\);\s*\}',
+    re.S,
+)
+replacement = '''static String normalized(String w)
+  {
+    return w.toLowerCase();
+  }'''
+s2, n = pattern.subn(replacement, s, count=1)
+if n != 1:
+    raise SystemExit('PersonalDictionary.normalized() anchor not found')
+p.write_text(s2, encoding='utf-8')
+
+# 3. Translator / memory events.
+p = SRC / 'KeyValue.java'
+s = p.read_text(encoding='utf-8')
+if 'SILMIR_TRANSLATE' not in s:
+    anchor = '    CHANGE_DICTIONARY,\n'
+    if anchor not in s:
+        raise SystemExit('KeyValue Event anchor not found')
+    s = s.replace(
+        anchor,
+        anchor
+        + '    SILMIR_TRANSLATE,\n'
+        + '    SILMIR_RU_TO_SIL,\n'
+        + '    SILMIR_SIL_TO_RU,\n'
+        + '    SILMIR_LEARN,\n'
+        + '    SILMIR_FORGET,\n',
+        1,
+    )
+
+    anchor = '      case "change_dictionary": return eventKey(0xE01D, Event.CHANGE_DICTIONARY, 0);\n'
+    if anchor not in s:
+        raise SystemExit('KeyValue special-key anchor not found')
+    s = s.replace(
+        anchor,
+        anchor
+        + '      case "silmir_translate": return eventKey("⇄", Event.SILMIR_TRANSLATE, FLAG_SMALLER_FONT);\n'
+        + '      case "silmir_ru_to_sil": return eventKey("R→S", Event.SILMIR_RU_TO_SIL, FLAG_SMALLER_FONT);\n'
+        + '      case "silmir_sil_to_ru": return eventKey("S→R", Event.SILMIR_SIL_TO_RU, FLAG_SMALLER_FONT);\n'
+        + '      case "silmir_learn": return eventKey("✓", Event.SILMIR_LEARN, FLAG_SMALLER_FONT);\n'
+        + '      case "silmir_forget": return eventKey("×", Event.SILMIR_FORGET, FLAG_SMALLER_FONT);\n',
+        1,
+    )
+p.write_text(s, encoding='utf-8')
+
+# 4. Hook optimized translator into the IME.
+p = SRC / 'Keyboard2.java'
+s = p.read_text(encoding='utf-8')
+if 'import java.io.InputStream;' not in s:
+    anchor = 'import java.util.AbstractMap.SimpleEntry;\n'
+    if anchor not in s:
+        raise SystemExit('Keyboard2 import anchor not found')
+    s = s.replace(
+        anchor,
+        'import java.io.InputStream;\nimport java.io.IOException;\nimport java.util.concurrent.ExecutorService;\nimport java.util.concurrent.Executors;\n' + anchor,
+        1,
+    )
+
+if 'private SilmirTranslator _silmirTranslator' not in s:
+    anchor = '  private Handler _handler;\n'
+    if anchor not in s:
+        raise SystemExit('Keyboard2 field anchor not found')
+    s = s.replace(
+        anchor,
+        anchor
+        + '  private SilmirTranslator _silmirTranslator = null;\n'
+        + '  private String _silmirLastSource = null;\n'
+        + '  private String _silmirLastOutput = null;\n'
+        + '  private int _silmirLastMode = 0;\n'
+        + '  private final ExecutorService _silmirExecutor = Executors.newSingleThreadExecutor();\n'
+        + '  private int _silmirTranslateSeq = 0;\n',
+        1,
+    )
+
+methods = r'''
+  private SilmirTranslator get_silmir_translator()
+  {
+    if (_silmirTranslator != null)
+      return _silmirTranslator;
+    try (InputStream lex = getAssets().open("silmir_translation_lexicon.tsv");
+         InputStream forms = getAssets().open("silmir_ru_forms_mega.tsv");
+         InputStream semantic = getAssets().open("silmir_semantic_aliases_mega.tsv");
+         InputStream senses = getAssets().open("silmir_context_senses_v6.tsv"))
+    {
+      _silmirTranslator = new SilmirTranslator(lex, forms, semantic, senses);
+      return _silmirTranslator;
+    }
+    catch (OutOfMemoryError e)
+    {
+      _silmirTranslator = null;
+      Log.e("UnexpectedKeyboard", "Sil'mir translator ran out of memory", e);
+      android.widget.Toast.makeText(this, "Sil'mir: не хватило памяти", android.widget.Toast.LENGTH_SHORT).show();
+      return null;
+    }
+    catch (Throwable e)
+    {
+      _silmirTranslator = null;
+      Log.e("UnexpectedKeyboard", "Cannot load Sil'mir translator", e);
+      android.widget.Toast.makeText(this, "Sil'mir: ошибка загрузки переводчика", android.widget.Toast.LENGTH_SHORT).show();
+      return null;
+    }
+  }
+
+  private String silmir_tm_key(int mode, String source)
+  {
+    return "v6:" + mode + ":" + source.trim().toLowerCase(java.util.Locale.ROOT);
+  }
+
+  private SharedPreferences silmir_tm()
+  {
+    return getSharedPreferences("silmir_translation_memory", MODE_PRIVATE);
+  }
+
+  private String translate_silmir_chunk(SilmirTranslator tr, String source, int mode)
+  {
+    if (mode == 1)
+      return tr.russianToSilmir(source);
+    if (mode == 2)
+      return tr.silmirToRussian(source);
+    return tr.translate(source);
+  }
+
+  /** Translate long selections in bounded chunks to avoid a giant temporary
+      token graph in the IME process. */
+  private String translate_silmir_bounded(SilmirTranslator tr, String source, int mode)
+  {
+    if (source.length() <= 2400)
+      return translate_silmir_chunk(tr, source, mode);
+
+    StringBuilder out = new StringBuilder();
+    int start = 0;
+    while (start < source.length())
+    {
+      int end = Math.min(source.length(), start + 2000);
+      if (end < source.length())
+      {
+        int cut = -1;
+        for (int i = end; i > start + 900; i--)
+        {
+          char c = source.charAt(i - 1);
+          if (c == '\n' || c == '.' || c == '?' || c == '!' || c == ';')
+          { cut = i; break; }
+        }
+        if (cut < 0)
+        {
+          for (int i = end; i > start + 900; i--)
+            if (Character.isWhitespace(source.charAt(i - 1)))
+            { cut = i; break; }
+        }
+        if (cut > start)
+          end = cut;
+      }
+      String chunk = source.substring(start, end);
+      out.append(translate_silmir_chunk(tr, chunk, mode));
+      if (end < source.length() && end > start)
+      {
+        char boundary = source.charAt(end - 1);
+        if (boundary == '\n')
+          out.append('\n');
+        else if (Character.isWhitespace(boundary) && (out.length() == 0 || !Character.isWhitespace(out.charAt(out.length() - 1))))
+          out.append(' ');
+      }
+      start = end;
+    }
+    return out.toString();
+  }
+
+  /** Translate selected text. If nothing is selected, translate the current
+      line before the cursor. Heavy parsing runs off the IME/UI thread.
+      mode: 0=AUTO, 1=RU→Sil'mir, 2=Sil'mir→RU. */
+  private void translate_silmir_text(int mode)
+  {
+    final InputConnection conn = getCurrentInputConnection();
+    if (conn == null)
+      return;
+
+    CharSequence selected = conn.getSelectedText(0);
+    final boolean hasSelection = selected != null && selected.length() > 0;
+    final String rawSource;
+    if (hasSelection)
+      rawSource = selected.toString();
