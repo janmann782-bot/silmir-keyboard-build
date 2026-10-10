@@ -5,8 +5,8 @@ on:
   push:
     paths:
       - "assets/**"
-      - "SilmirTranslator.java"
-      - "patch_silmir_keyboard.py"
+      - "build_chunks/**"
+      - "tests/**"
       - "Silmir_Unexpected_Keyboard_v6_2_CONTEXT.xml"
       - ".github/workflows/build.yml"
 
@@ -18,6 +18,15 @@ jobs:
         uses: actions/checkout@v4
         with:
           path: silmir-kit
+
+      - name: Reconstruct v6.2 sources
+        shell: bash
+        run: |
+          cat silmir-kit/build_chunks/SilmirTranslator.java.part* > silmir-kit/SilmirTranslator.java
+          cat silmir-kit/build_chunks/patch_silmir_keyboard.py.part* > silmir-kit/patch_silmir_keyboard.py
+          test -s silmir-kit/SilmirTranslator.java
+          test -s silmir-kit/patch_silmir_keyboard.py
+          python3 -m py_compile silmir-kit/patch_silmir_keyboard.py
 
       - name: Checkout Unexpected Keyboard personal-dictionary branch
         uses: actions/checkout@v4
@@ -56,7 +65,7 @@ jobs:
           cp silmir-kit/SilmirTranslator.java /tmp/silmir-test/juloo/keyboard2/SilmirTranslator.java
           cp silmir-kit/tests/TestSilmirTranslator.java /tmp/silmir-test/juloo/keyboard2/TestSilmirTranslator.java
           cd /tmp/silmir-test
-          javac juloo/keyboard2/*.java
+          javac -Xlint:all juloo/keyboard2/*.java
           java -Xmx20m -Dfile.encoding=UTF-8 juloo.keyboard2.TestSilmirTranslator             "$GITHUB_WORKSPACE/silmir-kit/assets/silmir_translation_lexicon.tsv"             "$GITHUB_WORKSPACE/silmir-kit/assets/silmir_ru_forms_mega.tsv"             "$GITHUB_WORKSPACE/silmir-kit/assets/silmir_semantic_aliases_mega.tsv"             "$GITHUB_WORKSPACE/silmir-kit/assets/silmir_context_senses_v6.tsv"             "$GITHUB_WORKSPACE/silmir-kit/tests/v6_cases.tsv"
 
       - name: Build debug APK
