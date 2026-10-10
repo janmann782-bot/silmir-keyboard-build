@@ -1,0 +1,175 @@
+    List<RuForm> l=amb.get(key);
+    if(l==null){l=new ArrayList<RuForm>();l.add(old);amb.put(key,l);}
+    boolean dup=false;for(RuForm x:l)if(sameCandidate(x,f)){dup=true;if(f.priority<x.priority){l.remove(x);l.add(f);}break;}
+    if(!dup)l.add(f);
+    if(f.priority<old.priority)best.put(key,f);
+  }
+  private static List<RuForm> candidates(Map<String,RuForm> best,Map<String,List<RuForm>> amb,String key)
+  {
+    List<RuForm> l=amb.get(key);if(l!=null)return l;RuForm f=best.get(key);if(f==null)return null;return Collections.singletonList(f);
+  }
+
+  private void loadForms(InputStream in) throws IOException
+  {
+    BufferedReader br=new BufferedReader(new InputStreamReader(in,StandardCharsets.UTF_8));br.readLine();String line;
+    while((line=br.readLine())!=null)
+    {
+      String[] c=line.split("\\t",-1);
+      // v6 compact: form,root,pos,number,morph,lemma,priority
+      // v5 MEGA:    form,latin,root,pos,number,morph,lemma,priority
+      boolean legacy=c.length>=8; if((!legacy&&c.length<7))continue;
+      int ri=legacy?2:1, pi=legacy?3:2, ni=legacy?4:3, mi=legacy?5:4, li=legacy?6:5, pri=legacy?7:6;
+      RuForm f=new RuForm();
+      f.root=rootRef(c[ri]);f.pos=canonPos(c[pi]);f.number=canonNumber(c[ni]);f.morph=pooled(c[mi]);f.lemma=pooled(normRu(c[li]));try{f.priority=Integer.parseInt(c[pri]);}catch(Exception e){f.priority=999;}
+      RuForm sem=aliasCyr.get(normRu(f.lemma));if(sem!=null&&sem.pos.equals(f.pos))f.root=sem.root;
+      putCandidate(formsCyr,formsAmb,normRu(c[0]),f);
+      if(f.pos.equals("verb"))
+      {
+        String key=outKey(f.root,f.number,f.morph); Integer old=reverseVerbPriority.get(key);
+        if(old==null||f.priority<old.intValue()){reverseVerbPriority.put(key,Integer.valueOf(f.priority));reverseVerb.put(key,pooled(c[0]));}
+      }
+    }
+    br.close();
+  }
+
+  private void loadAliases(InputStream in) throws IOException
+  {
+    BufferedReader br=new BufferedReader(new InputStreamReader(in,StandardCharsets.UTF_8));br.readLine();String line;
+    while((line=br.readLine())!=null)
+    {
+      String[] c=line.split("\\t",-1);
+      // v6 compact: alias,latin,root,pos,priority,source
+      // v5 MEGA:    alias,root,pos,priority,source,stem,latin,latin_stem
+      boolean legacy=c.length>=8; if((!legacy&&c.length<6))continue;
+      int lati=legacy?6:1, ri=legacy?1:2, pi=legacy?2:3, pri=legacy?3:4;
+      RuForm f=new RuForm();f.root=rootRef(c[ri]);f.pos=canonPos(c[pi]);f.number="sg";f.lemma=pooled(normRu(c[0]));f.morph=f.pos.equals("verb")?"verb:infinitive:3:active":"nom";try{f.priority=Integer.parseInt(c[pri]);}catch(Exception e){f.priority=50;}
+      String k=normRu(c[0]);putCandidate(aliasCyr,aliasAmbCyr,k,f);
+      if(k.indexOf(' ')<0){String st=russianStem(k);RuForm o=aliasStem.get(st);if(o==null||f.priority<o.priority)aliasStem.put(st,f);}
+      String lat=c[lati].toLowerCase(Locale.ROOT);if(!lat.isEmpty())putCandidate(aliasLat,aliasAmbLat,lat,f);
+    }
+    br.close();
+  }
+
+  private void loadReverseVerbs(InputStream in) throws IOException
+  {
+    BufferedReader br=new BufferedReader(new InputStreamReader(in,StandardCharsets.UTF_8));br.readLine();String line;
+    while((line=br.readLine())!=null)
+    {
+      String[] c=line.split("\\t",-1);if(c.length<5)continue;String key=outKey(rootRef(c[0]),canonNumber(c[1]),pooled(c[2]));
+      if(!reverseVerb.containsKey(key))reverseVerb.put(key,pooled(c[3]));
+    }
+    br.close();
+  }
+
+  private void loadSenseRules(InputStream in) throws IOException
+  {
+    BufferedReader br=new BufferedReader(new InputStreamReader(in,StandardCharsets.UTF_8));br.readLine();String line;
+    while((line=br.readLine())!=null)
+    {
+      String[] c=line.split("\\t",-1);if(c.length<4)continue;SenseRule r=new SenseRule();r.triggerStem=pooled(c[1]);r.root=rootRef(c[2]);try{r.weight=Integer.parseInt(c[3]);}catch(Exception e){r.weight=20;}
+      String head=normRu(c[0]);List<SenseRule> l=senseRules.get(head);if(l==null){l=new ArrayList<SenseRule>();senseRules.put(head,l);}l.add(r);
+    }
+    br.close();
+  }
+
+  private RuForm cloneForm(RuForm x)
+  {
+    RuForm f=new RuForm();f.root=x.root;f.pos=x.pos;f.number=x.number;f.morph=x.morph;f.lemma=x.lemma;f.priority=x.priority;return f;
+  }
+  private RuForm specialDirectional(String n)
+  {
+    if(!n.equals("домой"))return null;RuForm f=new RuForm();f.root="dom";f.pos="noun";f.number="sg";f.morph="directional";f.lemma="дом";f.priority=-15;return f;
+  }
+  private RuForm specialPronoun(String n)
+  {
+    String root=null,morph="nom",lemma=n;
+    if(n.equals("я")||n.equals("меня")||n.equals("мне")||n.equals("мной")||n.equals("мною")){root="cə";lemma="я";if(n.equals("меня"))morph="acc";else if(n.equals("мне"))morph="dat";else if(n.equals("мной")||n.equals("мною"))morph="ins";}
+    else if(n.equals("ты")||n.equals("тебя")||n.equals("тебе")||n.equals("тобой")||n.equals("тобою")){root="pavil";lemma="ты";if(n.equals("тебя"))morph="acc";else if(n.equals("тебе"))morph="dat";else if(n.equals("тобой")||n.equals("тобою"))morph="ins";}
+    else if(n.equals("он")||n.equals("его")||n.equals("ему")||n.equals("им")){root="hon";lemma="он";if(n.equals("его"))morph="acc";else if(n.equals("ему"))morph="dat";else if(n.equals("им"))morph="ins";}
+    else if(n.equals("она")||n.equals("ее")||n.equals("её")||n.equals("ей")||n.equals("ею")){root="dat";lemma="она";if(n.equals("ее")||n.equals("её"))morph="acc";else if(n.equals("ей"))morph="dat";else if(n.equals("ею"))morph="ins";}
+    else if(n.equals("оно")){root="sysæg";lemma="оно";}
+    else if(n.equals("мы")||n.equals("нас")||n.equals("нам")||n.equals("нами")){root="mæśærel";lemma="мы";if(n.equals("нас"))morph="acc";else if(n.equals("нам"))morph="dat";else if(n.equals("нами"))morph="ins";}
+    else if(n.equals("вы")||n.equals("вас")||n.equals("вам")||n.equals("вами")){root="uneź";lemma="вы";if(n.equals("вас"))morph="acc";else if(n.equals("вам"))morph="dat";else if(n.equals("вами"))morph="ins";}
+    else if(n.equals("они")||n.equals("их")||n.equals("ими")){root="ynən";lemma="они";if(n.equals("их"))morph="acc";else if(n.equals("ими"))morph="ins";}
+    if(root==null)return null;RuForm f=new RuForm();f.root=root;f.pos="pronoun";f.number=(root.equals("mæśærel")||root.equals("uneź")||root.equals("ynən"))?"pl":"sg";f.morph=morph;f.lemma=lemma;f.priority=-20;return f;
+  }
+  private RuForm specialQuestion(String n)
+  {
+    String root=null,morph="nom",lemma=n;if(n.equals("кто")||n.equals("кого")||n.equals("кому")||n.equals("кем")){root="emøg";lemma="кто";}else if(n.equals("что")||n.equals("чего")||n.equals("чему")||n.equals("чем")){root="hit";lemma="что";}if(root==null)return null;
+    if(n.equals("кого")||n.equals("чего"))morph="acc";else if(n.equals("кому")||n.equals("чему"))morph="dat";else if(n.equals("кем")||n.equals("чем"))morph="ins";RuForm f=new RuForm();f.root=root;f.pos="pronoun";f.number="sg";f.morph=morph;f.lemma=lemma;f.priority=-10;return f;
+  }
+
+  private static String reverseLatinRussian(String s)
+  {
+    String x=s.toLowerCase(Locale.ROOT);StringBuilder b=new StringBuilder();
+    for(int i=0;i<x.length();)
+    {
+      if(i+4<=x.length()&&x.substring(i,i+4).equals("shch")){b.append('щ');i+=4;continue;}
+      if(i+2<=x.length())
+      {
+        String q=x.substring(i,i+2);if(q.equals("zh")){b.append('ж');i+=2;continue;}if(q.equals("ch")){b.append('ч');i+=2;continue;}if(q.equals("sh")){b.append('ш');i+=2;continue;}if(q.equals("kh")){b.append('х');i+=2;continue;}if(q.equals("ts")){b.append('ц');i+=2;continue;}if(q.equals("yo")){b.append('ё');i+=2;continue;}if(q.equals("yu")){b.append('ю');i+=2;continue;}if(q.equals("ya")){b.append('я');i+=2;continue;}
+      }
+      char c=x.charAt(i++);String z="";switch(c){case'a':z="а";break;case'b':z="б";break;case'v':z="в";break;case'g':z="г";break;case'd':z="д";break;case'e':z="е";break;case'z':z="з";break;case'i':z="и";break;case'y':z="й";break;case'k':z="к";break;case'l':z="л";break;case'm':z="м";break;case'n':z="н";break;case'o':z="о";break;case'p':z="п";break;case'r':z="р";break;case's':z="с";break;case't':z="т";break;case'u':z="у";break;case'f':z="ф";break;case'h':z="х";break;case'j':z="й";break;default:z=String.valueOf(c);}b.append(z);
+    }
+    return b.toString();
+  }
+
+  private RuForm bestCandidate(List<RuForm> vals,String prefer,List<String> ctx,int at)
+  {
+    if(vals==null||vals.isEmpty())return null;RuForm best=null;int bestScore=Integer.MIN_VALUE;
+    for(RuForm x:vals)
+    {
+      int sc=-x.priority;if(prefer!=null&&prefer.equals(x.pos))sc+=100;
+      if(ctx!=null)
+      {
+        String prev=previousWord(ctx,at),next=nextWord(ctx,at);
+        if(SUPPORTED_PREPS.contains(prev)){if(x.pos.equals("noun")||x.pos.equals("pronoun"))sc+=55;if(x.pos.equals("verb"))sc-=45;}
+        if(prev.equals("не")||FUTURE_AUX.containsKey(prev)){if(x.pos.equals("verb"))sc+=50;}
+        if(SUBJECT_PRON.contains(prev)){if(x.pos.equals("verb"))sc+=55;if(x.pos.equals("noun"))sc-=15;}
+        if(!next.isEmpty())
+        {
+          RuForm nf=bestExact(next);
+          if(nf!=null&&(nf.pos.equals("noun")||nf.pos.equals("pronoun"))&&x.pos.equals("adjective"))sc+=55;
+          if(nf!=null&&nf.pos.equals("verb")&&x.pos.equals("noun"))sc+=35;
+          if(nf!=null&&(nf.pos.equals("noun")||nf.pos.equals("pronoun"))&&x.pos.equals("verb")&&x.morph.startsWith("verb:")&&!x.morph.contains(":infinitive:"))
+          { sc+=18; if(nf.morph.equals("acc"))sc+=25; }
+        }
+        if(x.pos.equals("verb")&&x.morph.contains(":imperative:")&&(at==0||prev.equals("не")))sc+=30;
+        if(x.pos.equals("noun")&&at>0){RuForm pf=bestExact(prev);if(pf!=null&&pf.pos.equals("verb"))sc+=20;}
+      }
+      if(best==null||sc>bestScore){best=x;bestScore=sc;}
+    }
+    return best;
+  }
+  private static String previousWord(List<String> t,int i){for(int j=i-1;j>=0;j--){String q=t.get(j);if(isWord(q))return normRu(q);if(q.matches("[.!?;]"))break;}return "";}
+  private static String nextWord(List<String> t,int i){for(int j=i+1;j<t.size();j++){String q=t.get(j);if(isWord(q))return normRu(q);if(q.matches("[.!?;]"))break;}return "";}
+  private RuForm bestExact(String token)
+  {
+    if(token==null||token.isEmpty())return null;String n=normRu(token);RuForm p=specialPronoun(n);if(p!=null)return p;RuForm q=specialQuestion(n);if(q!=null)return q;RuForm d=specialDirectional(n);if(d!=null)return d;RuForm f=formsCyr.get(n);if(f!=null)return f;return aliasCyr.get(n);
+  }
+
+  private RuForm resolveRussian(String token){return resolveRussian(token,null);}
+  private RuForm resolveRussian(String token,String prefer)
+  {
+    String n=normRu(token);RuForm gp=specialPronoun(n);if(gp!=null)return gp;RuForm sp=specialQuestion(n);if(sp!=null)return sp;RuForm sd=specialDirectional(n);if(sd!=null)return sd;
+    RuForm f=bestCandidate(candidates(formsCyr,formsAmb,n),prefer,null,-1);if(f!=null)return f;
+    f=bestCandidate(candidates(aliasCyr,aliasAmbCyr,n),prefer,null,-1);if(f!=null)return f;
+    f=aliasStem.get(russianStem(n));if(f!=null&&(prefer==null||prefer.equals(f.pos)))return f;
+    String l=token.toLowerCase(Locale.ROOT);String rev=reverseLatinRussian(l);if(!rev.equals(l))
+    {
+      RuForm rp=specialPronoun(normRu(rev));if(rp!=null)return rp;RuForm rq=specialQuestion(normRu(rev));if(rq!=null)return rq;RuForm rd=specialDirectional(normRu(rev));if(rd!=null)return rd;
+      f=bestCandidate(candidates(formsCyr,formsAmb,normRu(rev)),prefer,null,-1);if(f!=null)return f;
+    }
+    f=bestCandidate(candidates(aliasLat,aliasAmbLat,l),prefer,null,-1);if(f!=null)return f;
+    if(!rev.equals(l))
+    {
+      f=bestCandidate(candidates(aliasCyr,aliasAmbCyr,normRu(rev)),prefer,null,-1);if(f!=null)return f;
+      f=aliasStem.get(russianStem(normRu(rev)));if(f!=null&&(prefer==null||prefer.equals(f.pos)))return f;
+    }
+    return null;
+  }
+  private RuForm resolveRussianContext(List<String> t,int i)
+  {
+    String token=t.get(i),n=normRu(token);RuForm gp=specialPronoun(n);if(gp!=null)return gp;RuForm sp=specialQuestion(n);if(sp!=null)return sp;RuForm sd=specialDirectional(n);if(sd!=null)return sd;
+    RuForm f=bestCandidate(candidates(formsCyr,formsAmb,n),null,t,i);if(f!=null)return f;
+    f=bestCandidate(candidates(aliasCyr,aliasAmbCyr,n),null,t,i);if(f!=null)return f;
