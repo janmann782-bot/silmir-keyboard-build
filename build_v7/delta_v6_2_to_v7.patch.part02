@@ -1,0 +1,59 @@
+         if(pc!=null)kase=pc;else if(f.morph.equals("directional"))kase="directional";else if(gv!=null&&obj.get(gv)!=null&&obj.get(gv)==i)kase="accusative";else if(gv!=null&&subj.get(gv)!=null&&subj.get(gv)==i&&obj.get(gv)!=null&&f.pos.equals("noun"))kase="ergative";else if(numeral!=null&&NUM2.contains(numeral))kase=numeral.equals("двух")?"genitive":numeral.equals("двум")?"dative":numeral.equals("двумя")?"instrumental":"absolutive";else if(numeral!=null&&NUMPL.contains(numeral))kase="absolutive";else kase=f.morph.equals("directional")?"directional":f.morph.equals("gen")?"genitive":f.morph.equals("dat")?"dative":f.morph.equals("acc")?"accusative":f.morph.equals("ins")?"instrumental":f.morph.equals("loc")?"locative":kase;
++        if(duringHeads.contains(i))kase="genitive";
+         if(WH.contains(nt))out.add(f.root);
+-        else if(f.pos.equals("pronoun")){if(f.root.equals("hit")||f.root.equals("emøg")||f.root.equals("najem"))out.add(f.root);else out.add(f.root+(kase.equals("accusative")?"ən":""));}else out.add(buildNoun(f.root,number,kase));continue;
++        else if(f.pos.equals("pronoun")){if(f.root.equals("hit")||f.root.equals("emøg")||f.root.equals("najem"))out.add(f.root);else out.add(f.root+(kase.equals("accusative")?"ən":""));}else out.add(buildNoun(f.root,number,kase));
++        if(duringHeads.contains(i))out.add("møcokov");
++        continue;
+       }
+       if(f.pos.equals("adverb")){out.add(f.root+"of");continue;}
+       if(f.pos.equals("adjective"))
+       {
+-        String number="singular";for(int j=i+1;j<n&&j<i+6;j++){RuForm h=info.get(j);if(h!=null&&(h.pos.equals("noun")||h.pos.equals("pronoun"))){String nu=headNum.get(j);if(nu!=null&&NUM2.contains(nu))number="dual";else if((nu!=null&&NUMPL.contains(nu))||h.number.equals("pl"))number="plural";break;}}
+-        String root=f.root;if(neg.contains(i))root="na"+root;if(intense.contains(i))root="hy"+root;String d=degree.get(i),suf=d==null?"":d.equals("comparative")?"yv":d.equals("superlative")?"yvm":d.equals("attenuative")?"yś":"yvs";out.add(root+(number.equals("dual")?"et":number.equals("plural")?"in":"")+suf);continue;
++        String number=f.number.equals("pl")?"plural":"singular";for(int j=i+1;j<n&&j<i+6;j++){RuForm h=info.get(j);if(h!=null&&(h.pos.equals("noun")||h.pos.equals("pronoun"))){String nu=headNum.get(j);if(nu!=null&&NUM2.contains(nu))number="dual";else if((nu!=null&&NUMPL.contains(nu))||h.number.equals("pl"))number="plural";break;}}
++        String root=f.root;if(f.morph.startsWith("derived_adj:yb"))root=root+"yb";if(neg.contains(i))root="na"+root;if(intense.contains(i))root="hy"+root;String d=degree.get(i),suf=d==null?"":d.equals("comparative")?"yv":d.equals("superlative")?"yvm":d.equals("attenuative")?"yś":"yvs";out.add(root+(number.equals("dual")?"et":number.equals("plural")?"in":"")+suf);continue;
+       }
+       out.add(f.root);
+     }
+--- a/patch_silmir_keyboard.py
++++ b/patch_silmir_keyboard.py
+@@ -100,8 +100,8 @@
+         anchor,
+         anchor
+         + '      case "silmir_translate": return eventKey("⇄", Event.SILMIR_TRANSLATE, FLAG_SMALLER_FONT);\n'
+-        + '      case "silmir_ru_to_sil": return eventKey("R→S", Event.SILMIR_RU_TO_SIL, FLAG_SMALLER_FONT);\n'
+-        + '      case "silmir_sil_to_ru": return eventKey("S→R", Event.SILMIR_SIL_TO_RU, FLAG_SMALLER_FONT);\n'
++        + '      case "silmir_ru_to_sil": return eventKey("R", Event.SILMIR_RU_TO_SIL, FLAG_SMALLER_FONT);\n'
++        + '      case "silmir_sil_to_ru": return eventKey("S", Event.SILMIR_SIL_TO_RU, FLAG_SMALLER_FONT);\n'
+         + '      case "silmir_learn": return eventKey("✓", Event.SILMIR_LEARN, FLAG_SMALLER_FONT);\n'
+         + '      case "silmir_forget": return eventKey("×", Event.SILMIR_FORGET, FLAG_SMALLER_FONT);\n',
+         1,
+@@ -145,9 +145,10 @@
+     try (InputStream lex = getAssets().open("silmir_translation_lexicon.tsv");
+          InputStream forms = getAssets().open("silmir_ru_forms_mega.tsv");
+          InputStream semantic = getAssets().open("silmir_semantic_aliases_mega.tsv");
+-         InputStream senses = getAssets().open("silmir_context_senses_v6.tsv"))
++         InputStream senses = getAssets().open("silmir_context_senses_v6.tsv");
++         InputStream concepts = getAssets().open("silmir_concepts_v7.tsv"))
+     {
+-      _silmirTranslator = new SilmirTranslator(lex, forms, semantic, senses);
++      _silmirTranslator = new SilmirTranslator(lex, forms, semantic, senses, concepts);
+       return _silmirTranslator;
+     }
+     catch (OutOfMemoryError e)
+@@ -168,7 +169,7 @@
+ 
+   private String silmir_tm_key(int mode, String source)
+   {
+-    return "v6:" + mode + ":" + source.trim().toLowerCase(java.util.Locale.ROOT);
++    return "v7:" + mode + ":" + source.trim().toLowerCase(java.util.Locale.ROOT);
+   }
+ 
+   private SharedPreferences silmir_tm()
+@@ -459,4 +460,4 @@
+     raise SystemExit('SilmirTranslator.java not found in build kit')
+ shutil.copy2(source, SRC / 'SilmirTranslator.java')
+ 
+-print("Sil'mir v6.2 CONTEXT async low-memory translator patched successfully")
++print("Sil'mir v7 concept pipeline patched successfully")
