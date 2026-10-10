@@ -1,0 +1,39 @@
+  private void loadReverseVerbs(InputStream in) throws IOException
+  {
+    BufferedReader br=new BufferedReader(new InputStreamReader(in,StandardCharsets.UTF_8));br.readLine();String line;
+    while((line=br.readLine())!=null)
+    {
+      String[] c=line.split("\\t",-1);if(c.length<5)continue;String key=outKey(rootRef(c[0]),canonNumber(c[1]),pooled(c[2]));
+      if(!reverseVerb.containsKey(key))reverseVerb.put(key,pooled(c[3]));
+    }
+    br.close();
+  }
+
+  private void loadSenseRules(InputStream in) throws IOException
+  {
+    BufferedReader br=new BufferedReader(new InputStreamReader(in,StandardCharsets.UTF_8));br.readLine();String line;
+    while((line=br.readLine())!=null)
+    {
+      String[] c=line.split("\\t",-1);if(c.length<4)continue;SenseRule r=new SenseRule();r.triggerStem=pooled(c[1]);r.root=rootRef(c[2]);try{r.weight=Integer.parseInt(c[3]);}catch(Exception e){r.weight=20;}
+      String head=normRu(c[0]);List<SenseRule> l=senseRules.get(head);if(l==null){l=new ArrayList<SenseRule>();senseRules.put(head,l);}l.add(r);
+    }
+    br.close();
+  }
+
+  private RuForm cloneForm(RuForm x)
+  {
+    RuForm f=new RuForm();f.root=x.root;f.pos=x.pos;f.number=x.number;f.morph=x.morph;f.lemma=x.lemma;f.priority=x.priority;return f;
+  }
+  private RuForm specialDirectional(String n)
+  {
+    if(!n.equals("домой"))return null;RuForm f=new RuForm();f.root="dom";f.pos="noun";f.number="sg";f.morph="directional";f.lemma="дом";f.priority=-15;return f;
+  }
+  private RuForm specialPronoun(String n)
+  {
+    String root=null,morph="nom",lemma=n;
+    if(n.equals("я")||n.equals("меня")||n.equals("мне")||n.equals("мной")||n.equals("мною")){root="cə";lemma="я";if(n.equals("меня"))morph="acc";else if(n.equals("мне"))morph="dat";else if(n.equals("мной")||n.equals("мною"))morph="ins";}
+    else if(n.equals("ты")||n.equals("тебя")||n.equals("тебе")||n.equals("тобой")||n.equals("тобою")){root="pavil";lemma="ты";if(n.equals("тебя"))morph="acc";else if(n.equals("тебе"))morph="dat";else if(n.equals("тобой")||n.equals("тобою"))morph="ins";}
+    else if(n.equals("он")||n.equals("его")||n.equals("ему")||n.equals("им")){root="hon";lemma="он";if(n.equals("его"))morph="acc";else if(n.equals("ему"))morph="dat";else if(n.equals("им"))morph="ins";}
+    else if(n.equals("она")||n.equals("ее")||n.equals("её")||n.equals("ей")||n.equals("ею")){root="dat";lemma="она";if(n.equals("ее")||n.equals("её"))morph="acc";else if(n.equals("ей"))morph="dat";else if(n.equals("ею"))morph="ins";}
+    else if(n.equals("оно")){root="sysæg";lemma="оно";}
+    else if(n.equals("мы")||n.equals("нас")||n.equals("нам")||n.equals("нами")){root="mæśærel";lemma="мы";if(n.equals("нас"))morph="acc";else if(n.equals("нам"))morph="dat";else if(n.equals("нами"))morph="ins";}
