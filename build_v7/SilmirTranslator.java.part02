@@ -1,0 +1,261 @@
+    else if(n.equals("вы")||n.equals("вас")||n.equals("вам")||n.equals("вами")){root="uneź";lemma="вы";if(n.equals("вас"))morph="acc";else if(n.equals("вам"))morph="dat";else if(n.equals("вами"))morph="ins";}
+    else if(n.equals("они")||n.equals("их")||n.equals("ими")){root="ynən";lemma="они";if(n.equals("их"))morph="acc";else if(n.equals("ими"))morph="ins";}
+    if(root==null)return null;RuForm f=new RuForm();f.root=root;f.pos="pronoun";f.number=(root.equals("mæśærel")||root.equals("uneź")||root.equals("ynən"))?"pl":"sg";f.morph=morph;f.lemma=lemma;f.priority=-20;return f;
+  }
+  private RuForm specialQuestion(String n)
+  {
+    String root=null,morph="nom",lemma=n;if(n.equals("кто")||n.equals("кого")||n.equals("кому")||n.equals("кем")){root="emøg";lemma="кто";}else if(n.equals("что")||n.equals("чего")||n.equals("чему")||n.equals("чем")){root="hit";lemma="что";}if(root==null)return null;
+    if(n.equals("кого")||n.equals("чего"))morph="acc";else if(n.equals("кому")||n.equals("чему"))morph="dat";else if(n.equals("кем")||n.equals("чем"))morph="ins";RuForm f=new RuForm();f.root=root;f.pos="pronoun";f.number="sg";f.morph=morph;f.lemma=lemma;f.priority=-10;return f;
+  }
+
+  private static String reverseLatinRussian(String s)
+  {
+    String x=s.toLowerCase(Locale.ROOT);StringBuilder b=new StringBuilder();
+    for(int i=0;i<x.length();)
+    {
+      if(i+4<=x.length()&&x.substring(i,i+4).equals("shch")){b.append('щ');i+=4;continue;}
+      if(i+2<=x.length())
+      {
+        String q=x.substring(i,i+2);if(q.equals("zh")){b.append('ж');i+=2;continue;}if(q.equals("ch")){b.append('ч');i+=2;continue;}if(q.equals("sh")){b.append('ш');i+=2;continue;}if(q.equals("kh")){b.append('х');i+=2;continue;}if(q.equals("ts")){b.append('ц');i+=2;continue;}if(q.equals("yo")){b.append('ё');i+=2;continue;}if(q.equals("yu")){b.append('ю');i+=2;continue;}if(q.equals("ya")){b.append('я');i+=2;continue;}
+      }
+      char c=x.charAt(i++);String z="";switch(c){case'a':z="а";break;case'b':z="б";break;case'v':z="в";break;case'g':z="г";break;case'd':z="д";break;case'e':z="е";break;case'z':z="з";break;case'i':z="и";break;case'y':z="й";break;case'k':z="к";break;case'l':z="л";break;case'm':z="м";break;case'n':z="н";break;case'o':z="о";break;case'p':z="п";break;case'r':z="р";break;case's':z="с";break;case't':z="т";break;case'u':z="у";break;case'f':z="ф";break;case'h':z="х";break;case'j':z="й";break;default:z=String.valueOf(c);}b.append(z);
+    }
+    return b.toString();
+  }
+
+  private RuForm bestCandidate(List<RuForm> vals,String prefer,List<String> ctx,int at)
+  {
+    if(vals==null||vals.isEmpty())return null;RuForm best=null;int bestScore=Integer.MIN_VALUE;
+    for(RuForm x:vals)
+    {
+      int sc=-x.priority;if(prefer!=null&&prefer.equals(x.pos))sc+=100;
+      if(ctx!=null)
+      {
+        String prev=previousWord(ctx,at),next=nextWord(ctx,at);
+        if(SUPPORTED_PREPS.contains(prev)){if(x.pos.equals("noun")||x.pos.equals("pronoun"))sc+=55;if(x.pos.equals("verb"))sc-=45;}
+        if(prev.equals("не")||FUTURE_AUX.containsKey(prev)){if(x.pos.equals("verb"))sc+=50;}
+        if(SUBJECT_PRON.contains(prev)){if(x.pos.equals("verb"))sc+=55;if(x.pos.equals("noun"))sc-=15;}
+        if(!next.isEmpty())
+        {
+          RuForm nf=bestExact(next);
+          if(nf!=null&&(nf.pos.equals("noun")||nf.pos.equals("pronoun"))&&x.pos.equals("adjective"))sc+=55;
+          if(nf!=null&&nf.pos.equals("verb")&&x.pos.equals("noun"))sc+=35;
+          if(nf!=null&&(nf.pos.equals("noun")||nf.pos.equals("pronoun"))&&x.pos.equals("verb")&&x.morph.startsWith("verb:")&&!x.morph.contains(":infinitive:"))
+          { sc+=18; if(nf.morph.equals("acc"))sc+=25; }
+        }
+        if(x.pos.equals("verb")&&x.morph.contains(":imperative:")&&(at==0||prev.equals("не")))sc+=30;
+        if(x.pos.equals("noun")&&at>0){RuForm pf=bestExact(prev);if(pf!=null&&pf.pos.equals("verb"))sc+=20;}
+      }
+      if(best==null||sc>bestScore){best=x;bestScore=sc;}
+    }
+    return best;
+  }
+  private static String previousWord(List<String> t,int i){for(int j=i-1;j>=0;j--){String q=t.get(j);if(isWord(q))return normRu(q);if(q.matches("[.!?;]"))break;}return "";}
+  private static String nextWord(List<String> t,int i){for(int j=i+1;j<t.size();j++){String q=t.get(j);if(isWord(q))return normRu(q);if(q.matches("[.!?;]"))break;}return "";}
+  private RuForm bestExact(String token)
+  {
+    if(token==null||token.isEmpty())return null;String n=normRu(token);RuForm p=specialPronoun(n);if(p!=null)return p;RuForm q=specialQuestion(n);if(q!=null)return q;RuForm d=specialDirectional(n);if(d!=null)return d;RuForm f=formsCyr.get(n);if(f!=null)return f;return aliasCyr.get(n);
+  }
+
+  private static RuForm synthetic(String root,String pos,String number,String morph,String lemma,int priority)
+  {
+    RuForm f=new RuForm();f.root=root;f.pos=pos;f.number=number;f.morph=morph;f.lemma=lemma;f.priority=priority;return f;
+  }
+
+  private RuForm exactNounConcept(String lemma)
+  {
+    RuForm f=aliasCyr.get(normRu(lemma));
+    if(f!=null&&f.pos.equals("noun"))return f;
+    f=formsCyr.get(normRu(lemma));
+    if(f!=null&&f.pos.equals("noun")&&f.morph.equals("nom"))return f;
+    return null;
+  }
+
+  private RuForm deriveRelationalAdjective(String word)
+  {
+    String w=normRu(word);
+    String[][] endings={
+      {"скими","pl"},{"ских","pl"},{"ские","pl"},{"ским","pl"},
+      {"ского","sg"},{"скому","sg"},{"ском","sg"},{"ской","sg"},{"скую","sg"},
+      {"ская","sg"},{"ское","sg"},{"ский","sg"},
+      {"ными","pl"},{"ных","pl"},{"ные","pl"},{"ным","pl"},
+      {"ного","sg"},{"ному","sg"},{"ном","sg"},{"ной","sg"},{"ную","sg"},
+      {"ная","sg"},{"ное","sg"},{"ный","sg"}
+    };
+    for(String[] x:endings)if(w.endsWith(x[0])&&w.length()>x[0].length()+1)
+    {
+      String base=w.substring(0,w.length()-x[0].length());
+      RuForm noun=exactNounConcept(base);
+      if(noun!=null)return synthetic(noun.root,"adjective",x[1],"derived_adj:yb",base+"ский",3);
+    }
+    return null;
+  }
+
+  private RuForm deriveKnownNounInflection(String word)
+  {
+    String w=normRu(word);
+    String[][] endings={
+      {"ами","pl","ins"},{"ями","pl","ins"},{"ах","pl","loc"},{"ях","pl","loc"},
+      {"ам","pl","dat"},{"ям","pl","dat"},{"ов","pl","gen"},{"ев","pl","gen"},
+      {"ом","sg","ins"},{"ем","sg","ins"},{"у","sg","dat"},{"ю","sg","dat"},
+      {"а","sg","gen"},{"я","sg","gen"},{"е","sg","loc"},{"ы","pl","nom"},{"и","pl","nom"}
+    };
+    for(String[] x:endings)if(w.endsWith(x[0])&&w.length()>x[0].length()+2)
+    {
+      String stem=w.substring(0,w.length()-x[0].length());
+      RuForm noun=exactNounConcept(stem);
+      if(noun!=null)return synthetic(noun.root,"noun",x[1],x[2],stem,5);
+    }
+    return null;
+  }
+
+  private static boolean looksRussianNounContext(List<String> t,int i)
+  {
+    String prev=previousWord(t,i);
+    if(PREP_SCAN.contains(prev)||prev.equals("время"))return true;
+    if(i>0)
+    {
+      String p=normRu(t.get(i-1));
+      if(p.matches(".*(?:ого|его|ой|ых|их|ыми|ими|скому|скому)$"))return true;
+    }
+    return false;
+  }
+
+  private RuForm deriveBorrowedNoun(List<String> t,int i,String token)
+  {
+    String w=normRu(token);if(!w.matches("[а-я-]+"))return null;
+    String lemma=w,morph="nom",num="sg";
+    boolean ctx=looksRussianNounContext(t,i);
+    if(ctx)
+    {
+      if(w.endsWith("ами")&&w.length()>5){lemma=w.substring(0,w.length()-3);morph="ins";num="pl";}
+      else if(w.endsWith("ями")&&w.length()>5){lemma=w.substring(0,w.length()-3);morph="ins";num="pl";}
+      else if(w.endsWith("ах")&&w.length()>4){lemma=w.substring(0,w.length()-2);morph="loc";num="pl";}
+      else if(w.endsWith("ях")&&w.length()>4){lemma=w.substring(0,w.length()-2);morph="loc";num="pl";}
+      else if(w.endsWith("ов")&&w.length()>4){lemma=w.substring(0,w.length()-2);morph="gen";num="pl";}
+      else if(w.endsWith("ам")&&w.length()>4){lemma=w.substring(0,w.length()-2);morph="dat";num="pl";}
+      else if(w.endsWith("ям")&&w.length()>4){lemma=w.substring(0,w.length()-2);morph="dat";num="pl";}
+      else if(w.endsWith("ом")&&w.length()>4){lemma=w.substring(0,w.length()-2);morph="ins";}
+      else if(w.endsWith("ем")&&w.length()>4){lemma=w.substring(0,w.length()-2);morph="ins";}
+      else if(w.endsWith("а")&&w.length()>4){lemma=w.substring(0,w.length()-1);morph="gen";}
+      else if(w.endsWith("у")&&w.length()>4){lemma=w.substring(0,w.length()-1);morph="dat";}
+      else if(w.endsWith("е")&&w.length()>4){lemma=w.substring(0,w.length()-1);morph="loc";}
+    }
+    String root=transliterateRuToSil(lemma);
+    return synthetic(root,"noun",num,morph,lemma,80);
+  }
+
+  private RuForm deriveRussianFallback(List<String> t,int i,String token)
+  {
+    String raw=token,n=normRu(token);
+    RuForm f=deriveRelationalAdjective(n);if(f!=null)return f;
+    f=deriveKnownNounInflection(n);if(f!=null)return f;
+    String rev=reverseLatinRussian(token.toLowerCase(Locale.ROOT));
+    if(!rev.equals(token.toLowerCase(Locale.ROOT)))
+    {
+      f=deriveRelationalAdjective(rev);if(f!=null)return f;
+      f=deriveKnownNounInflection(rev);if(f!=null)return f;
+      if(looksRussianNounContext(t,i))return deriveBorrowedNoun(t,i,rev);
+    }
+    if(looksRussianNounContext(t,i)||Character.isUpperCase(raw.charAt(0)))return deriveBorrowedNoun(t,i,n);
+    return null;
+  }
+
+  private RuForm resolveRussian(String token){return resolveRussian(token,null);}
+  private RuForm resolveRussian(String token,String prefer)
+  {
+    String n=normRu(token);RuForm gp=specialPronoun(n);if(gp!=null)return gp;RuForm sp=specialQuestion(n);if(sp!=null)return sp;RuForm sd=specialDirectional(n);if(sd!=null)return sd;
+    RuForm f=bestCandidate(candidates(formsCyr,formsAmb,n),prefer,null,-1);if(f!=null)return f;
+    f=bestCandidate(candidates(aliasCyr,aliasAmbCyr,n),prefer,null,-1);if(f!=null)return f;
+    f=deriveRelationalAdjective(n);if(f!=null&&(prefer==null||prefer.equals(f.pos)))return f;
+    f=deriveKnownNounInflection(n);if(f!=null&&(prefer==null||prefer.equals(f.pos)))return f;
+    f=aliasStem.get(russianStem(n));if(f!=null&&(prefer==null||prefer.equals(f.pos)))return f;
+    String l=token.toLowerCase(Locale.ROOT);String rev=reverseLatinRussian(l);if(!rev.equals(l))
+    {
+      RuForm rp=specialPronoun(normRu(rev));if(rp!=null)return rp;RuForm rq=specialQuestion(normRu(rev));if(rq!=null)return rq;RuForm rd=specialDirectional(normRu(rev));if(rd!=null)return rd;
+      f=bestCandidate(candidates(formsCyr,formsAmb,normRu(rev)),prefer,null,-1);if(f!=null)return f;
+    }
+    f=bestCandidate(candidates(aliasLat,aliasAmbLat,l),prefer,null,-1);if(f!=null)return f;
+    if(!rev.equals(l))
+    {
+      f=bestCandidate(candidates(aliasCyr,aliasAmbCyr,normRu(rev)),prefer,null,-1);if(f!=null)return f;
+      f=aliasStem.get(russianStem(normRu(rev)));if(f!=null&&(prefer==null||prefer.equals(f.pos)))return f;
+    }
+    return null;
+  }
+  private RuForm resolveRussianContext(List<String> t,int i)
+  {
+    String token=t.get(i),n=normRu(token);RuForm gp=specialPronoun(n);if(gp!=null)return gp;RuForm sp=specialQuestion(n);if(sp!=null)return sp;RuForm sd=specialDirectional(n);if(sd!=null)return sd;
+    RuForm f=bestCandidate(candidates(formsCyr,formsAmb,n),null,t,i);if(f!=null)return f;
+    f=bestCandidate(candidates(aliasCyr,aliasAmbCyr,n),null,t,i);if(f!=null)return f;
+    String l=token.toLowerCase(Locale.ROOT),rev=reverseLatinRussian(l);if(!rev.equals(l)){RuForm rp=specialPronoun(normRu(rev));if(rp!=null)return rp;RuForm rq=specialQuestion(normRu(rev));if(rq!=null)return rq;RuForm rd=specialDirectional(normRu(rev));if(rd!=null)return rd;f=bestCandidate(candidates(formsCyr,formsAmb,normRu(rev)),null,t,i);if(f!=null)return f;f=bestCandidate(candidates(aliasCyr,aliasAmbCyr,normRu(rev)),null,t,i);if(f!=null)return f;}
+    f=bestCandidate(candidates(aliasLat,aliasAmbLat,l),null,t,i);if(f!=null)return f;
+    f=deriveRussianFallback(t,i,token);if(f!=null)return f;
+    f=aliasStem.get(russianStem(n));return f;
+  }
+  private RuForm applyContextSense(List<String> t,int i,RuForm f,Set<Integer> consumed)
+  {
+    if(f==null)return null;String head=normRu(f.lemma);List<SenseRule> rs=senseRules.get(head);if(rs==null)return f;SenseRule win=null;int winIndex=-1,score=0;
+    for(int j=Math.max(0,i-4);j<=Math.min(t.size()-1,i+4);j++)if(j!=i)
+    {
+      String q=t.get(j);if(!isWord(q))continue;RuForm tf=bestExact(q);if(tf!=null&&tf.pos.equals("verb"))continue;String st=russianStem(normRu(q));
+      for(SenseRule r:rs)if(r.triggerStem.equals(st)&&r.weight>score){win=r;winIndex=j;score=r.weight;}
+    }
+    if(win==null)return f;RuForm z=cloneForm(f);z.root=win.root;z.priority=Math.min(z.priority,2);
+    if(winIndex>=0&&Math.abs(winIndex-i)<=2){RuForm tf=bestExact(t.get(winIndex));if(tf==null||tf.pos.equals("adjective"))consumed.add(winIndex);}
+    return z;
+  }
+
+  public String translate(String text)
+  {
+    if(CYR.matcher(text).find())return russianToSilmir(text);
+    int sil=0,ru=0;List<String> raw=tokens(text),merged=mergeRussianPhrases(raw);for(String q:merged)if(q.indexOf(' ')>=0)ru+=6;
+    for(String tok:raw)if(isWord(tok))
+    {
+      A a=analyzeSil(tok);if(a.confidence>=90)sil+=3;else if(a.confidence>=75)sil++;
+      if(SIL_SPECIAL.matcher(tok).find())sil+=2;
+      if(resolveRussian(tok)!=null)ru+=2;else if(looksLatinRussian(tok))ru++;
+    }
+    return ru>sil?russianToSilmir(text):silmirToRussian(text);
+  }
+
+  private Lex lexget(String r){return lexCi.get(r.toLowerCase(Locale.ROOT));}
+  private String deredupRoot(String r)
+  {
+    for(int k=1;k<=3&&2*k<=r.length();k++)
+    {
+      String p=r.substring(0,k);if(r.startsWith(p+p))
+      {
+        String cand=p+r.substring(2*k);Lex e=lexget(cand);if(e!=null&&"verb".equals(e.pos))return e.root;
+      }
+    }
+    return null;
+  }
+
+  A analyzeSil(String token)
+  {
+    String low=token.toLowerCase(Locale.ROOT);
+    if(PRON.containsKey(low)){A a=new A(token);a.root=low;a.pos="pronoun";a.ru=PRON.get(low)[0];a.confidence=100;return a;}
+    if(SIL_FUNCTION.containsKey(low)){A a=new A(token);a.root=low;a.pos="particle";a.ru=SIL_FUNCTION.get(low);a.confidence=100;return a;}
+    if(low.equals("tyt")||low.equals("hremem")||low.equals("lavi")){A a=new A(token);a.root=low;a.pos="irregular";a.ru=low.equals("tyt")?"иди":low.equals("hremem")?"умойся":"в унитазе";a.confidence=100;return a;}
+
+    String[][] pref={{"hy","intensive"},{"sa","toward"},{"ez","away"}};
+    for(String[] q:pref)if(low.startsWith(q[0])&&low.length()>q[0].length()+1)
+    {
+      A a=analyzeSil(token.substring(q[0].length()));if(a.confidence>=75){a.token=token;a.modifier=q[1];a.confidence+=2;return a;}
+    }
+    if(low.startsWith("na")&&low.length()>4)
+    {
+      A a=analyzeSil(token.substring(2));if(a.confidence>=75&&(a.pos.equals("adjective")||a.pos.equals("derived"))){a.token=token;a.modifier="negated";a.confidence+=2;return a;}
+    }
+
+    ArrayList<A> cand=new ArrayList<A>();
+    String[][] cases={{"absolutive",""},{"ergative","əś"},{"accusative","ən"},{"directional","iź"},{"dative","uv"},{"genitive","om"},{"instrumental","yr"},{"locative","ov"},{"ablative","yf"}};
+    String[][] nums={{"singular",""},{"dual","et"},{"plural","in"}};
+    for(String[] cs:cases)
+    {
+      if(!cs[1].isEmpty()&&!low.endsWith(cs[1]))continue;String s1=cs[1].isEmpty()?low:low.substring(0,low.length()-cs[1].length());
+      for(String[] ns:nums)
+      {
+        if(!ns[1].isEmpty()&&!s1.endsWith(ns[1]))continue;String rr=ns[1].isEmpty()?s1:s1.substring(0,s1.length()-ns[1].length());Lex e=lexget(rr);
+        if(e!=null&&(e.pos.equals("noun")||e.pos.equals("pronoun")||e.pos.equals("numeral"))){A a=new A(token);a.root=e.root;a.pos=e.pos;a.number=ns[0];a.kase=cs[0];a.ru=e.ru;a.confidence=84+(!cs[1].isEmpty()?5:0)+(!ns[1].isEmpty()?4:0)+(e.register.equals("standard")?4:0);cand.add(a);}
