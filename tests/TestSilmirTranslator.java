@@ -9,20 +9,20 @@ public final class TestSilmirTranslator
 {
   public static void main(String[] a) throws Exception
   {
-    if (a.length != 5)
-      throw new IllegalArgumentException("expected 4 assets + test TSV");
+    if (a.length != 6)
+      throw new IllegalArgumentException("expected 5 assets + test TSV");
 
     SilmirTranslator t = new SilmirTranslator(
       new FileInputStream(a[0]), new FileInputStream(a[1]),
-      new FileInputStream(a[2]), new FileInputStream(a[3]));
+      new FileInputStream(a[2]), new FileInputStream(a[3]), new FileInputStream(a[4]));
 
     BufferedReader br = new BufferedReader(new InputStreamReader(
-      new FileInputStream(a[4]), StandardCharsets.UTF_8));
+      new FileInputStream(a[5]), StandardCharsets.UTF_8));
     String line;
     int total = 0, failed = 0;
     while ((line = br.readLine()) != null)
     {
-      String[] c = line.split("\\t", 3);
+      String[] c = line.split("\t", 3);
       if (c.length != 3)
         continue;
       total++;
@@ -40,7 +40,7 @@ public final class TestSilmirTranslator
       }
     }
     br.close();
-    System.out.println("Sil'mir v6 tests: " + (total - failed) + "/" + total);
+    System.out.println("Sil'mir v7 tests: " + (total - failed) + "/" + total);
     if (failed != 0)
       System.exit(2);
   }
