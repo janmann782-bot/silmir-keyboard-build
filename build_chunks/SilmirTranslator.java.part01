@@ -1,0 +1,175 @@
+package juloo.keyboard2;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+/** Offline MEGA Sil'mir <-> Russian translator.
+ *
+ * The Sil'mir side is grammar-driven. The Russian side uses an expanded
+ * morphology/semantic index plus sentence-level heuristics. No network calls.
+ */
+public final class SilmirTranslator
+{
+  private static final Pattern TOKEN = Pattern.compile(
+      "[A-Za-zÆØƏŚŹæøəśź]+(?:'[A-Za-zÆØƏŚŹæøəśź]+)?|[А-Яа-яЁё]+|\\d+|[^\\w\\s]");
+  private static final Pattern CYR = Pattern.compile("[А-Яа-яЁё]");
+  private static final Pattern SIL_SPECIAL = Pattern.compile("[ÆØƏŚŹæøəśź]");
+
+  static final class Lex
+  {
+    String root, ru, pos, register, primary;
+  }
+
+  static final class RuForm
+  {
+    String root, pos, number, morph, lemma;
+    int priority;
+  }
+
+  static final class SenseRule
+  {
+    String triggerStem, root;
+    int weight;
+  }
+
+  static final class A
+  {
+    String token, root="", pos="unknown", number="singular", kase="absolutive";
+    String tense="", person="3", personNumber="sg", voice="active", register="ordinary";
+    String derivation="", ru="", modifier="";
+    int confidence=0;
+    A(String t){token=t;}
+  }
+
+  private final Map<String,Lex> lexCi = new HashMap<String,Lex>(16384);
+  private final Map<String,RuForm> formsCyr = new HashMap<String,RuForm>(70000);
+  private final Map<String,List<RuForm>> formsAmb = new HashMap<String,List<RuForm>>(128);
+  private final Map<String,RuForm> aliasCyr = new HashMap<String,RuForm>(16000);
+  private final Map<String,List<RuForm>> aliasAmbCyr = new HashMap<String,List<RuForm>>(128);
+  private final Map<String,RuForm> aliasLat = new HashMap<String,RuForm>(16000);
+  private final Map<String,List<RuForm>> aliasAmbLat = new HashMap<String,List<RuForm>>(128);
+  private final Map<String,RuForm> aliasStem = new HashMap<String,RuForm>(16000);
+  private final Map<String,String> reverseVerb = new HashMap<String,String>(8192);
+  private Map<String,Integer> reverseVerbPriority = new HashMap<String,Integer>(8192);
+  private final Map<String,List<SenseRule>> senseRules = new HashMap<String,List<SenseRule>>(2048);
+  private Map<String,String> stringPool = new HashMap<String,String>(32768);
+
+  private static final Map<String,String[]> PRON = new HashMap<String,String[]>();
+  private static final Map<String,String> SIL_FUNCTION = new HashMap<String,String>();
+  private static final Map<String,String[]> FUTURE_AUX = new HashMap<String,String[]>();
+  private static final Set<String> PREP_LOC_DIR = set("в","во","на");
+  private static final Set<String> PREP_DIRECTIONAL = set("к","ко");
+  private static final Set<String> PREP_ABLATIVE = set("из","от","ото","с","со");
+  private static final Set<String> PREP_LOCATIVE = set("при");
+  private static final Set<String> SUPPORTED_PREPS = union(PREP_LOC_DIR,PREP_DIRECTIONAL,PREP_ABLATIVE,PREP_LOCATIVE);
+  private static final Set<String> PREP_SCAN = union(SUPPORTED_PREPS,set("за"));
+  private static final Set<String> VIEW = set("смотреть","глядеть","наблюдать","посмотреть","взглянуть","следить");
+  private static final Set<String> MOTION = set("идти","ходить","ехать","бежать","лететь","плыть","двигаться","направляться","приходить","уходить","входить","выходить","подходить","отходить","пойти","прийти","уйти","подойти","отойти","выйти","войти");
+  private static final Set<String> TOWARD = set("подходить","подойти","приходить","прийти","приближаться","войти");
+  private static final Set<String> AWAY = set("уходить","уйти","отходить","отойти","удаляться","выйти");
+  private static final Set<String> HABITUAL = set("обычно","регулярно","постоянно");
+  private static final Set<String> INTENSIFIERS = set("очень","крайне","весьма","пристально");
+  private static final Set<String> WH = set("кто","кого","кому","кем","что","чего","чему","чем","где","куда","откуда","когда","почему","зачем","как","какой","какая","какое","какие","сколько");
+  private static final Set<String> NUM2 = set("два","две","двух","двум","двумя");
+  private static final Set<String> NUMPL = set("три","четыре","пять","шесть","семь","восемь","девять","десять");
+  private static final Set<Character> VOWELS = chars("aæeəioøuy");
+  private static final Set<String> SUBJECT_PRON = set("я","ты","он","она","оно","мы","вы","они");
+
+  static
+  {
+    PRON.put("cə",new String[]{"я","меня","мне","мной"});
+    PRON.put("pavil",new String[]{"ты","тебя","тебе","тобой"});
+    PRON.put("hon",new String[]{"он","его","ему","им"});
+    PRON.put("dat",new String[]{"она","ее","ей","ею"});
+    PRON.put("sysæg",new String[]{"оно","его","ему","им"});
+    PRON.put("mæśærel",new String[]{"мы","нас","нам","нами"});
+    PRON.put("uneź",new String[]{"вы","вас","вам","вами"});
+    PRON.put("ynən",new String[]{"они","их","им","ими"});
+    SIL_FUNCTION.put("na","не"); SIL_FUNCTION.put("vizøs","если бы"); SIL_FUNCTION.put("li","");
+    SIL_FUNCTION.put("emøg","кто"); SIL_FUNCTION.put("hit","что"); SIL_FUNCTION.put("najem","никто");
+    FUTURE_AUX.put("буду",new String[]{"1","sg"}); FUTURE_AUX.put("будешь",new String[]{"2","sg"}); FUTURE_AUX.put("будет",new String[]{"3","sg"});
+    FUTURE_AUX.put("будем",new String[]{"1","pl"}); FUTURE_AUX.put("будете",new String[]{"2","pl"}); FUTURE_AUX.put("будут",new String[]{"3","pl"});
+  }
+
+  public SilmirTranslator(InputStream lexiconTsv, InputStream russianFormsTsv, InputStream semanticAliasesTsv, InputStream contextSenseTsv) throws IOException
+  {
+    loadLexicon(lexiconTsv);
+    loadAliases(semanticAliasesTsv);
+    loadForms(russianFormsTsv);
+    loadSenseRules(contextSenseTsv);
+    if (!lexCi.containsKey("ty"))
+    {
+      Lex e=new Lex(); e.root="ty";e.ru="идти";e.pos="verb";e.register="standard";e.primary="идти";
+      lexCi.put("ty",e);
+    }
+    // The pool is only needed while loading. Keeping the pool map itself would
+    // duplicate thousands of hash entries even though the pooled strings stay referenced.
+    stringPool.clear(); stringPool=null;
+    reverseVerbPriority.clear(); reverseVerbPriority=null;
+  }
+
+  private static Set<String> set(String... xs)
+  {
+    HashSet<String> s=new HashSet<String>(); Collections.addAll(s,xs); return s;
+  }
+  @SafeVarargs
+  private static Set<String> union(Set<String>... sets)
+  {
+    HashSet<String> r=new HashSet<String>(); for(Set<String>s:sets)r.addAll(s); return r;
+  }
+  private static Set<Character> chars(String s)
+  {
+    HashSet<Character> r=new HashSet<Character>(); for(int i=0;i<s.length();i++)r.add(s.charAt(i)); return r;
+  }
+
+  private String pooled(String s)
+  {
+    if(s==null)return "";String x=stringPool.get(s);if(x!=null)return x;stringPool.put(s,s);return s;
+  }
+  private String rootRef(String r)
+  {
+    Lex e=lexCi.get(r.toLowerCase(Locale.ROOT));return e==null?pooled(r):e.root;
+  }
+  private static String canonPos(String p)
+  {
+    if(p.equals("noun"))return "noun";if(p.equals("verb"))return "verb";if(p.equals("adjective"))return "adjective";if(p.equals("pronoun"))return "pronoun";if(p.equals("numeral"))return "numeral";if(p.equals("particle"))return "particle";if(p.equals("aux"))return "aux";if(p.equals("adverb"))return "adverb";return p;
+  }
+  private static String canonNumber(String p){return p.equals("pl")?"pl":p.equals("dual")?"dual":"sg";}
+
+  private void loadLexicon(InputStream in) throws IOException
+  {
+    BufferedReader br=new BufferedReader(new InputStreamReader(in,StandardCharsets.UTF_8));br.readLine();String line;
+    while((line=br.readLine())!=null)
+    {
+      String[] c=line.split("\\t",-1);if(c.length<7)continue;
+      Lex e=new Lex();e.root=pooled(c[0]);e.ru=pooled(c[1]);e.pos=canonPos(c[2]);e.register=pooled(c[5]);
+      String primary=c[6].isEmpty()?c[1]:c[6].split("\\|",2)[0];e.primary=pooled(primary);
+      lexCi.put(e.root.toLowerCase(Locale.ROOT),e);
+    }
+    br.close();
+  }
+
+  private static boolean sameCandidate(RuForm a,RuForm b)
+  {
+    return a.root.equals(b.root)&&a.pos.equals(b.pos)&&a.number.equals(b.number)&&a.morph.equals(b.morph);
+  }
+  private static void putCandidate(Map<String,RuForm> best,Map<String,List<RuForm>> amb,String key,RuForm f)
+  {
+    RuForm old=best.get(key);
+    if(old==null){best.put(key,f);return;}
+    if(sameCandidate(old,f)){if(f.priority<old.priority)best.put(key,f);return;}
