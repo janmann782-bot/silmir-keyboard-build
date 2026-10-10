@@ -1,0 +1,129 @@
+      }
+    }
+    for(String[] ns:nums)
+    {
+      if(!ns[1].isEmpty()&&!low.endsWith(ns[1]))continue;String rr=ns[1].isEmpty()?low:low.substring(0,low.length()-ns[1].length());Lex e=lexget(rr);
+      if(e!=null&&e.pos.equals("adjective")){A a=new A(token);a.root=e.root;a.pos="adjective";a.number=ns[0];a.ru=e.ru;a.confidence=88+(!ns[1].isEmpty()?4:0);cand.add(a);}
+    }
+
+    String[][] persons={{"mn","1","pl"},{"śn","2","pl"},{"m","1","sg"},{"ś","2","sg"},{"n","3","pl"},{"","3","sg"}};
+    String[][] voices={{"","active"},{"s","passive"},{"m","reflexive"}};
+    for(String[] rg:new String[][]{{"s","ordinary"},{"l","respectful"}})if(low.endsWith(rg[0]))
+    {
+      String body=low.substring(0,low.length()-1);
+      for(String[] v:voices)for(String[] p:persons)
+      {
+        String tail=v[0]+p[0];if(!tail.isEmpty()&&!body.endsWith(tail))continue;String b2=tail.isEmpty()?body:body.substring(0,body.length()-tail.length());if(b2.length()<2)continue;
+        char tv=b2.charAt(b2.length()-1);String tense=tv=='a'?"past":tv=='i'?"present":tv=='u'?"future":"";if(tense.isEmpty())continue;
+        String rr=b2.substring(0,b2.length()-1);Lex e=lexget(rr);boolean hab=false;if(e==null){String dr=deredupRoot(rr);if(dr!=null){e=lexget(dr);hab=true;}}
+        if(e!=null&&e.pos.equals("verb")){A a=new A(token);a.root=e.root;a.pos="verb";a.tense=tense;a.person=p[1];a.personNumber=p[2];a.voice=v[1];a.register=rg[1];a.ru=e.ru;a.confidence=v[1].equals("active")?96:86;a.modifier=hab?"habitual":"";cand.add(a);}
+      }
+    }
+
+    String[][] der={{"øjm","imperative_reflexive"},{"øj","imperative"},{"suk","passive_participle"},{"uk","participle"},{"eb","gerund"},{"yvm","superlative"},{"yvs","excessive"},{"yv","comparative"},{"yś","attenuative"},{"of","adverb"},{"yb","adjective_from_noun"},{"yn","agent"},{"yl","action_result"},{"ic","diminutive"},{"uz","augmentative"},{"av","collective"},{"t","ordinal"}};
+    for(String[] d:der)if(low.endsWith(d[0]))
+    {
+      Lex e=lexget(low.substring(0,low.length()-d[0].length()));if(e!=null){A a=new A(token);a.root=e.root;a.pos=e.pos.equals("verb")?"verb":"derived";a.derivation=d[1];a.ru=e.ru;a.confidence=e.pos.equals("verb")?94:78;cand.add(a);}
+    }
+    Lex ex=lexget(low);if(ex!=null){A a=new A(token);a.root=ex.root;a.pos=ex.pos;a.ru=ex.ru;a.confidence=ex.register.equals("standard")?90:84;cand.add(a);}
+    if(cand.isEmpty()){A a=new A(token);a.root=low;a.ru=token;return a;}
+    Collections.sort(cand,new Comparator<A>(){public int compare(A a,A b){int d=b.confidence-a.confidence;return d!=0?d:b.root.length()-a.root.length();}});return cand.get(0);
+  }
+
+  private String buildNoun(String root,String number,String kase)
+  {
+    String ns=number.equals("dual")?"et":number.equals("plural")?"in":"";
+    String cs=kase.equals("ergative")?"əś":kase.equals("accusative")?"ən":kase.equals("dative")?"uv":kase.equals("genitive")?"om":kase.equals("instrumental")?"yr":kase.equals("locative")?"ov":kase.equals("ablative")?"yf":kase.equals("directional")?"iź":"";
+    return root+ns+cs;
+  }
+  private String buildVerb(String root,String tense,String person,String number,String voice,String register)
+  {
+    String tv=tense.equals("past")?"a":tense.equals("future")?"u":"i";String v=voice.equals("passive")?"s":voice.equals("reflexive")?"m":"";
+    String p=person.equals("1")?(number.equals("pl")?"mn":"m"):person.equals("2")?(number.equals("pl")?"śn":"ś"):(number.equals("pl")?"n":"");
+    return root+tv+v+p+(register.equals("respectful")?"l":"s");
+  }
+  private String firstSyllable(String r){for(int i=0;i<r.length();i++)if(VOWELS.contains(r.charAt(i)))return r.substring(0,i+1);return r.substring(0,Math.min(1,r.length()));}
+
+  private static String outKey(String root,String num,String morph){return root+"\u0001"+num+"\u0001"+morph;}
+  private String outputVerbForm(String root,String num,String morph){return reverseVerb.get(outKey(root,num,morph));}
+  private String canonicalLemma(String root)
+  {
+    Lex e=lexget(root);if(e==null)return transliterateSilToRu(root);String q=e.primary==null||e.primary.isEmpty()?e.ru:e.primary;q=q.replaceAll("\\s*\\([^)]*\\).*","").trim();return q.isEmpty()?e.ru:q;
+  }
+  private String ruPronoun(String root,String kase)
+  {
+    String[] a=PRON.get(root);if(a==null)return canonicalLemma(root);if(kase.equals("dative")||kase.equals("directional"))return a[2];if(kase.equals("instrumental"))return a[3];if(kase.equals("accusative")||kase.equals("genitive")||kase.equals("ablative"))return a[1];return a[0];
+  }
+  private static String nounIrregular(String lemma,String num,String morph)
+  {
+    String k=num+":"+morph;
+    if(lemma.equals("камень")){String[][]x={{"sg:nom","камень"},{"sg:gen","камня"},{"sg:dat","камню"},{"sg:acc","камень"},{"sg:ins","камнем"},{"sg:loc","камне"},{"pl:nom","камни"},{"pl:gen","камней"},{"pl:dat","камням"},{"pl:acc","камни"},{"pl:ins","камнями"},{"pl:loc","камнях"}};for(String[]a:x)if(a[0].equals(k))return a[1];}
+    if(lemma.equals("человек")){String[][]x={{"sg:nom","человек"},{"sg:gen","человека"},{"sg:dat","человеку"},{"sg:acc","человека"},{"sg:ins","человеком"},{"sg:loc","человеке"},{"pl:nom","люди"},{"pl:gen","людей"},{"pl:dat","людям"},{"pl:acc","людей"},{"pl:ins","людьми"},{"pl:loc","людях"}};for(String[]a:x)if(a[0].equals(k))return a[1];}
+    if(lemma.equals("ребенок")){String[][]x={{"sg:nom","ребенок"},{"sg:gen","ребенка"},{"sg:dat","ребенку"},{"sg:acc","ребенка"},{"sg:ins","ребенком"},{"sg:loc","ребенке"},{"pl:nom","дети"},{"pl:gen","детей"},{"pl:dat","детям"},{"pl:acc","детей"},{"pl:ins","детьми"},{"pl:loc","детях"}};for(String[]a:x)if(a[0].equals(k))return a[1];}
+    if(lemma.equals("мать")){String[][]x={{"sg:nom","мать"},{"sg:gen","матери"},{"sg:dat","матери"},{"sg:acc","мать"},{"sg:ins","матерью"},{"sg:loc","матери"},{"pl:nom","матери"},{"pl:gen","матерей"},{"pl:dat","матерям"},{"pl:acc","матерей"},{"pl:ins","матерями"},{"pl:loc","матерях"}};for(String[]a:x)if(a[0].equals(k))return a[1];}
+    if(lemma.equals("дочь")){String[][]x={{"sg:nom","дочь"},{"sg:gen","дочери"},{"sg:dat","дочери"},{"sg:acc","дочь"},{"sg:ins","дочерью"},{"sg:loc","дочери"},{"pl:nom","дочери"},{"pl:gen","дочерей"},{"pl:dat","дочерям"},{"pl:acc","дочерей"},{"pl:ins","дочерьми"},{"pl:loc","дочерях"}};for(String[]a:x)if(a[0].equals(k))return a[1];}
+    return null;
+  }
+  private static String inflectNoun(String lemma,String num,String morph)
+  {
+    String irr=nounIrregular(lemma,num,morph);if(irr!=null)return irr;if(!lemma.matches("[А-Яа-яЁё-]+"))return lemma;String l=lemma.toLowerCase(Locale.ROOT);boolean pl=num.equals("pl");
+    if(morph.equals("nom")&&!pl)return l;if(morph.equals("acc")&&!pl&&!l.endsWith("а")&&!l.endsWith("я"))return l;
+    String st;
+    if(l.endsWith("ия")){st=l.substring(0,l.length()-2);if(!pl){if(morph.equals("gen")||morph.equals("dat")||morph.equals("loc"))return st+"ии";if(morph.equals("acc"))return st+"ию";if(morph.equals("ins"))return st+"ией";}else{if(morph.equals("nom")||morph.equals("acc"))return st+"ии";if(morph.equals("gen"))return st+"ий";if(morph.equals("dat"))return st+"иям";if(morph.equals("ins"))return st+"иями";if(morph.equals("loc"))return st+"иях";}}
+    if(l.endsWith("а")){st=l.substring(0,l.length()-1);boolean soft="гкхжчшщц".indexOf(st.charAt(st.length()-1))>=0;if(!pl){if(morph.equals("gen"))return st+(soft?"и":"ы");if(morph.equals("dat")||morph.equals("loc"))return st+"е";if(morph.equals("acc"))return st+"у";if(morph.equals("ins"))return st+"ой";}else{if(morph.equals("nom")||morph.equals("acc"))return st+(soft?"и":"ы");if(morph.equals("gen"))return st;if(morph.equals("dat"))return st+"ам";if(morph.equals("ins"))return st+"ами";if(morph.equals("loc"))return st+"ах";}}
+    if(l.endsWith("я")){st=l.substring(0,l.length()-1);if(!pl){if(morph.equals("gen"))return st+"и";if(morph.equals("dat")||morph.equals("loc"))return st+"е";if(morph.equals("acc"))return st+"ю";if(morph.equals("ins"))return st+"ей";}else{if(morph.equals("nom")||morph.equals("acc"))return st+"и";if(morph.equals("gen"))return st;if(morph.equals("dat"))return st+"ям";if(morph.equals("ins"))return st+"ями";if(morph.equals("loc"))return st+"ях";}}
+    if(l.endsWith("о")){st=l.substring(0,l.length()-1);if(!pl){if(morph.equals("gen"))return st+"а";if(morph.equals("dat"))return st+"у";if(morph.equals("ins"))return st+"ом";if(morph.equals("loc"))return st+"е";}else{if(morph.equals("nom")||morph.equals("acc"))return st+"а";if(morph.equals("gen"))return st;if(morph.equals("dat"))return st+"ам";if(morph.equals("ins"))return st+"ами";if(morph.equals("loc"))return st+"ах";}}
+    if(l.endsWith("й")||l.endsWith("ь")){st=l.substring(0,l.length()-1);if(!pl){if(morph.equals("gen"))return st+"я";if(morph.equals("dat"))return st+"ю";if(morph.equals("ins"))return st+"ем";if(morph.equals("loc"))return st+"е";}else{if(morph.equals("nom")||morph.equals("acc"))return st+"и";if(morph.equals("gen"))return st+(l.endsWith("ь")?"ей":"ев");if(morph.equals("dat"))return st+"ям";if(morph.equals("ins"))return st+"ями";if(morph.equals("loc"))return st+"ях";}}
+    st=l;if(!pl){if(morph.equals("gen"))return st+"а";if(morph.equals("dat"))return st+"у";if(morph.equals("ins"))return st+"ом";if(morph.equals("loc"))return st+"е";}else{if(morph.equals("nom")||morph.equals("acc"))return st+("гкхжчшщц".indexOf(st.charAt(st.length()-1))>=0?"и":"ы");if(morph.equals("gen"))return st+"ов";if(morph.equals("dat"))return st+"ам";if(morph.equals("ins"))return st+"ами";if(morph.equals("loc"))return st+"ах";}return l;
+  }
+  private String ruNoun(A a)
+  {
+    String morph=a.kase.equals("genitive")||a.kase.equals("ablative")?"gen":a.kase.equals("dative")||a.kase.equals("directional")?"dat":a.kase.equals("accusative")?"acc":a.kase.equals("instrumental")?"ins":a.kase.equals("locative")?"loc":"nom";String lemma=canonicalLemma(a.root);
+    if(a.number.equals("dual")){String nn=(a.kase.equals("absolutive")||a.kase.equals("ergative")||a.kase.equals("accusative"))?"sg":"pl";String mm=(a.kase.equals("absolutive")||a.kase.equals("ergative")||a.kase.equals("accusative"))?"gen":morph;String noun=inflectNoun(lemma,nn,mm);String num=a.kase.equals("genitive")||a.kase.equals("locative")||a.kase.equals("ablative")?"двух":a.kase.equals("dative")||a.kase.equals("directional")?"двум":a.kase.equals("instrumental")?"двумя":"два";return num+" "+noun;}
+    return inflectNoun(lemma,a.number.equals("plural")?"pl":"sg",morph);
+  }
+  private String ruVerb(A a)
+  {
+    if(a.derivation.startsWith("imperative")){String voice=a.derivation.endsWith("reflexive")?"reflexive":"active";String v=outputVerbForm(a.root,"sg","verb:imperative:2:"+voice);return v==null?canonicalLemma(a.root):v;}
+    if(a.derivation.equals("gerund"))return canonicalLemma(a.root)+" (деепр.)";if(a.derivation.equals("participle")||a.derivation.equals("passive_participle"))return canonicalLemma(a.root)+" (прич.)";
+    String t=a.tense.isEmpty()?"present":a.tense;String base="verb:"+t+":"+a.person;String v=a.voice.equals("active")?outputVerbForm(a.root,a.personNumber,base):outputVerbForm(a.root,a.personNumber,base+":"+a.voice);if(v==null)v=outputVerbForm(a.root,a.personNumber,base+":"+a.voice);if(v==null)v=outputVerbForm(a.root,a.personNumber,base);
+    if(v==null&&a.tense.equals("future")){String aux=a.person.equals("1")?(a.personNumber.equals("pl")?"будем":"буду"):a.person.equals("2")?(a.personNumber.equals("pl")?"будете":"будешь"):(a.personNumber.equals("pl")?"будут":"будет");String inf=outputVerbForm(a.root,"sg","verb:infinitive:3:active");if(inf==null)inf=canonicalLemma(a.root);v=aux+" "+inf;}
+    if(v==null)v=canonicalLemma(a.root);if(!a.voice.equals("active")&&!v.endsWith("ся")&&!v.endsWith("сь"))v+=v.endsWith("ю")||v.endsWith("у")?"сь":"ся";
+    if(a.modifier.equals("habitual"))v="обычно "+v;else if(a.modifier.equals("intensive"))v="пристально "+v;else if(a.modifier.equals("toward")&&a.root.equals("ty"))v=(a.tense.equals("present")&&a.person.equals("3")&&a.personNumber.equals("sg"))?"подходит":"к "+v;else if(a.modifier.equals("away")&&a.root.equals("ty"))v=(a.tense.equals("present")&&a.person.equals("3")&&a.personNumber.equals("sg"))?"уходит":"от "+v;return v;
+  }
+  private String silWordToRussian(A a)
+  {
+    if(a.pos.equals("unknown"))return transliterateSilToRu(a.token);if(a.pos.equals("irregular")||a.pos.equals("particle"))return a.ru;
+    if(a.pos.equals("pronoun")){String s=ruPronoun(a.root,a.kase);if(a.kase.equals("directional"))return "к "+s;if(a.kase.equals("ablative"))return "от "+s;return s;}
+    if(a.pos.equals("noun")||a.pos.equals("numeral")){String s=ruNoun(a);if(a.kase.equals("locative"))s="в "+s;else if(a.kase.equals("ablative"))s="из "+s;else if(a.kase.equals("directional"))s="к "+s;return s;}
+    if(a.pos.equals("adjective")){String s=canonicalLemma(a.root);if(a.number.equals("plural")){if(s.endsWith("ый")||s.endsWith("ой"))s=s.substring(0,s.length()-2)+"ые";else if(s.endsWith("ий"))s=s.substring(0,s.length()-2)+"ие";}if(a.modifier.equals("intensive"))s="очень "+s;if(a.modifier.equals("negated"))s="не"+s;return s;}
+    if(a.pos.equals("verb"))return ruVerb(a);
+    if(a.pos.equals("derived")){String l=canonicalLemma(a.root),d=a.derivation;if(d.equals("diminutive"))return "маленький "+l;if(d.equals("augmentative"))return "огромный "+l;if(d.equals("collective"))return "скопление "+l;if(d.equals("adjective_from_noun"))return "относящийся к "+l;if(d.equals("agent"))return "тот, кто "+l;if(d.equals("action_result"))return "результат "+l;if(d.equals("comparative"))return "более "+l;if(d.equals("superlative"))return "самый "+l;if(d.equals("attenuative"))return "слегка "+l;if(d.equals("excessive"))return "слишком "+l;if(d.equals("adverb"))return (l.endsWith("ый")||l.endsWith("ий")||l.endsWith("ой"))?l.substring(0,l.length()-2)+"о":l+" образом";if(d.equals("ordinal"))return "порядковый "+l;}return canonicalLemma(a.root);
+  }
+
+  public String silmirToRussian(String text)
+  {
+    List<String> t=tokens(text);boolean question=false;if(!t.isEmpty()&&t.get(0).equalsIgnoreCase("li")){question=true;t.remove(0);}List<A>a=new ArrayList<A>();for(String s:t)a.add(isWord(s)?analyzeSil(s):null);
+    ArrayList<String> out=new ArrayList<String>();for(int i=0;i<t.size();)
+    {
+      A x=a.get(i);if(x==null){out.add(t.get(i));i++;continue;}
+      if(x.confidence<70){RuForm rf=resolveRussian(t.get(i));if(rf!=null){out.add(rf.lemma);i++;continue;}}
+      if(x.kase.equals("genitive")&&i+1<a.size()&&a.get(i+1)!=null&&(a.get(i+1).pos.equals("noun")||a.get(i+1).pos.equals("pronoun"))){out.add(silWordToRussian(a.get(i+1)));out.add(silWordToRussian(x));i+=2;continue;}
+      out.add(silWordToRussian(x));i++;
+    }
+    String s=join(out);if(question&&!s.endsWith("?"))s+="?";return capitalizeLike(text,s);
+  }
+
+  private static boolean wordEq(String s,String q){return normRu(s).equals(q);}
+  private String prepBefore(List<String>t,int i)
+  {
+    int seen=0;for(int j=i-1;j>=0&&j>=i-4;j--){String q=t.get(j);if(!isWord(q)){if(q.matches("[,.;!?]"))break;continue;}String w=normRu(q);seen++;if(PREP_SCAN.contains(w))return w;if(seen>=2)break;}return "";
+  }
+  private String caseFromPrep(String prep,RuForm f,boolean motion)
+  {
+    if(PREP_DIRECTIONAL.contains(prep))return "directional";if(PREP_ABLATIVE.contains(prep))return "ablative";if(PREP_LOCATIVE.contains(prep))return "locative";
+    if(PREP_LOC_DIR.contains(prep)){if(f!=null&&f.morph.equals("acc"))return "directional";if(f!=null&&f.morph.equals("loc"))return "locative";return motion?"directional":"locative";}return null;
+  }
+  private String[] personForSubject(RuForm f)
+  {
+    if(f==null)return new String[]{"3","sg"};if(f.root.equals("cə"))return new String[]{"1","sg"};if(f.root.equals("pavil"))return new String[]{"2","sg"};if(f.root.equals("mæśærel"))return new String[]{"1","pl"};if(f.root.equals("uneź"))return new String[]{"2","pl"};if(f.root.equals("ynən"))return new String[]{"3","pl"};return new String[]{"3",f.number.equals("pl")?"pl":"sg"};
