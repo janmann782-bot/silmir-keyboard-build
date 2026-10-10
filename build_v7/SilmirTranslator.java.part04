@@ -1,0 +1,157 @@
+  }
+  private List<String> mergeRussianPhrases(List<String> raw)
+  {
+    ArrayList<String>out=new ArrayList<String>();for(int i=0;i<raw.size();)
+    {
+      if(!isWord(raw.get(i))){out.add(raw.get(i++));continue;}String best=null;int bn=1;
+      for(int n=Math.min(6,raw.size()-i);n>=2;n--){boolean ok=true;StringBuilder b=new StringBuilder();for(int j=0;j<n;j++){String q=raw.get(i+j);if(!isWord(q)){ok=false;break;}if(j>0)b.append(' ');b.append(q);}if(!ok)continue;String q=b.toString();if(aliasCyr.containsKey(normRu(q))||aliasLat.containsKey(q.toLowerCase(Locale.ROOT))){best=q;bn=n;break;}}
+      if(best!=null){out.add(best);i+=bn;}else out.add(raw.get(i++));
+    }return out;
+  }
+
+  private String translateRussianClause(String text)
+  {
+    List<String> t=mergeRussianPhrases(tokens(text));int n=t.size();ArrayList<RuForm> info=new ArrayList<RuForm>();for(int qi=0;qi<n;qi++){String q=t.get(qi);info.add((isWord(q)||q.indexOf(' ')>=0)?resolveRussianContext(t,qi):null);}HashSet<Integer> senseSkip=new HashSet<Integer>();for(int qi=0;qi<n;qi++)if(info.get(qi)!=null)info.set(qi,applyContextSense(t,qi,info.get(qi),senseSkip));
+
+    Map<Integer,String[]> future=new HashMap<Integer,String[]>();HashSet<Integer> skip=new HashSet<Integer>();skip.addAll(senseSkip);
+    for(int i=0;i<n;i++)if(isWord(t.get(i))&&FUTURE_AUX.containsKey(normRu(t.get(i))))for(int j=i+1;j<n&&j<i+6;j++)if(info.get(j)!=null&&info.get(j).pos.equals("verb")){future.put(j,FUTURE_AUX.get(normRu(t.get(i))));skip.add(i);break;}
+
+    HashSet<Integer> duringHeads=new HashSet<Integer>();
+    for(int i=0;i+1<n;i++)if(normRu(t.get(i)).equals("во")&&normRu(t.get(i+1)).equals("время"))
+    {
+      skip.add(i);skip.add(i+1);
+      for(int j=i+2;j<n;j++)
+      {
+        if(t.get(j).matches("[.!?;]"))break;
+        RuForm x=info.get(j);
+        if(x!=null&&(x.pos.equals("noun")||x.pos.equals("pronoun"))){duringHeads.add(j);break;}
+        if(x!=null&&x.pos.equals("verb"))break;
+      }
+    }
+
+    ArrayList<Integer> verbs=new ArrayList<Integer>();for(int i=0;i<n;i++){RuForm x=info.get(i);if(x!=null&&x.pos.equals("verb")&&x.morph.startsWith("verb:")&&(!x.morph.contains(":infinitive:")||future.containsKey(i)))verbs.add(i);}
+    Map<Integer,Integer> subj=new HashMap<Integer,Integer>(),obj=new HashMap<Integer,Integer>();Integer lastSubj=null;
+    for(int vi:verbs)
+    {
+      Integer s=null;for(int i=vi-1;i>=0;i--){if(t.get(i).matches("[.!?;]"))break;RuForm x=info.get(i);if(x!=null&&x.pos.equals("verb"))break;if(x!=null&&(x.pos.equals("noun")||x.pos.equals("pronoun"))&&prepBefore(t,i).isEmpty()){if(x.morph.equals("nom")||x.pos.equals("pronoun")){s=i;break;}if(s==null)s=i;}}
+      if(s==null)s=lastSubj;if(s!=null)lastSubj=s;subj.put(vi,s);
+      ArrayList<Integer> cs=new ArrayList<Integer>();for(int i=vi+1;i<n;i++){if(t.get(i).matches("[.!?;]"))break;RuForm x=info.get(i);if(x!=null&&x.pos.equals("verb")&&!x.morph.contains(":infinitive:"))break;if(x!=null&&(x.pos.equals("noun")||x.pos.equals("pronoun"))&&prepBefore(t,i).isEmpty())cs.add(i);}Integer o=null;for(int i:cs)if(info.get(i).morph.equals("acc")){o=i;break;}if(o==null&&!cs.isEmpty())o=cs.get(0);
+      if(o==null&&s!=null&&info.get(s)!=null&&info.get(s).pos.equals("pronoun"))for(int i=s-1;i>=0;i--){if(t.get(i).matches("[.!?;]"))break;RuForm x=info.get(i);if(x!=null&&(x.pos.equals("noun")||x.pos.equals("pronoun"))&&prepBefore(t,i).isEmpty()){o=i;break;}}
+      obj.put(vi,o);
+    }
+
+    Map<Integer,String> headNum=new HashMap<Integer,String>();HashSet<Integer> numeralSkip=new HashSet<Integer>();
+    for(int i=0;i<n;i++)if(isWord(t.get(i))&&(NUM2.contains(normRu(t.get(i)))||NUMPL.contains(normRu(t.get(i)))))for(int j=i+1;j<n&&j<i+5;j++){RuForm x=info.get(j);if(x!=null&&(x.pos.equals("noun")||x.pos.equals("pronoun"))){headNum.put(j,normRu(t.get(i)));if(NUM2.contains(normRu(t.get(i))))numeralSkip.add(i);break;}}
+
+    HashSet<Integer> neg=new HashSet<Integer>(),habit=new HashSet<Integer>(),intense=new HashSet<Integer>();Map<Integer,String> degree=new HashMap<Integer,String>();
+    for(int i=0;i<n;i++)if(isWord(t.get(i)))
+    {
+      String w=normRu(t.get(i));if(w.equals("не")){for(int j=i+1;j<n&&j<i+4;j++){RuForm x=info.get(j);if(x!=null&&(x.pos.equals("verb")||x.pos.equals("adjective"))){neg.add(j);skip.add(i);break;}}}
+      else if(HABITUAL.contains(w)){for(int j=i+1;j<n&&j<i+5;j++){RuForm x=info.get(j);if(x!=null&&x.pos.equals("verb")){habit.add(j);skip.add(i);break;}}}
+      else if(INTENSIFIERS.contains(w)){for(int j=i+1;j<n&&j<i+4;j++){RuForm x=info.get(j);if(x!=null&&(x.pos.equals("verb")||x.pos.equals("adjective"))){intense.add(j);skip.add(i);break;}}}
+      else if(w.equals("более")||w.startsWith("сам")||w.equals("слегка")||w.equals("слишком")){String d=w.equals("более")?"comparative":w.startsWith("сам")?"superlative":w.equals("слегка")?"attenuative":"excessive";for(int j=i+1;j<n&&j<i+4;j++){RuForm x=info.get(j);if(x!=null&&x.pos.equals("adjective")){degree.put(j,d);skip.add(i);break;}}}
+      if(w.equals("бы"))skip.add(i);
+      if(w.equals("за"))
+      {
+        for(int j=i-1;j>=0&&j>=i-5;j--)
+        {
+          RuForm z=info.get(j);
+          if(z!=null&&z.pos.equals("verb")){if(VIEW.contains(normRu(z.lemma)))skip.add(i);break;}
+        }
+      }
+    }
+
+    boolean question=text.trim().endsWith("?");boolean wh=false;for(String q:t)if(isWord(q)&&WH.contains(normRu(q)))wh=true;
+    ArrayList<String> out=new ArrayList<String>();
+    for(int i=0;i<n;i++)
+    {
+      if(skip.contains(i)||numeralSkip.contains(i))continue;String tok=t.get(i);RuForm f=info.get(i);if(f==null&&!isWord(tok)){out.add(tok);continue;}String nt=normRu(tok);
+      if(SUPPORTED_PREPS.contains(nt))continue;if(nt.equals("если")){out.add("vizøs");continue;}if(nt.equals("бы"))continue;
+      if(f==null){A sa=analyzeSil(tok);out.add(sa.confidence>=85?tok:transliterateRuToSil(tok));continue;}
+      if(f.pos.equals("aux"))continue;if(f.pos.equals("particle")){if(f.root.equals("na"))out.add("na");else if(f.root.equals("vizøs"))out.add("vizøs");continue;}
+      if(NUM2.contains(nt))continue;if(f.pos.equals("numeral")){out.add(f.root);continue;}
+
+      if(f.pos.equals("verb"))
+      {
+        String[] mp=f.morph.split(":");String kind=mp.length>1?mp[1]:"present",person=mp.length>2?mp[2]:"3",voice=mp.length>3?mp[3]:(f.lemma.endsWith("ся")||f.lemma.endsWith("сь")?"reflexive":"active"),num=f.number.equals("pl")?"pl":"sg";
+        if(kind.equals("infinitive")&&!future.containsKey(i)){out.add(f.root);continue;}
+        if(kind.equals("imperative")){String root=f.root;if(intense.contains(i))root="hy"+root;out.add(root+(voice.equals("reflexive")?"øjm":"øj"));continue;}
+        if(future.containsKey(i)){kind="future";person=future.get(i)[0];num=future.get(i)[1];}
+        Integer si=subj.get(i);if(si!=null){String[] pn=personForSubject(info.get(si));person=pn[0];num=pn[1];}
+        String root=f.root,lem=normRu(f.lemma);if(TOWARD.contains(lem)&&root.equals("ty"))root="sa"+root;else if(AWAY.contains(lem)&&root.equals("ty"))root="ez"+root;if(habit.contains(i))root=firstSyllable(root)+root;if(intense.contains(i))root="hy"+root;if(neg.contains(i))out.add("na");out.add(buildVerb(root,kind,person,num,voice,"ordinary"));continue;
+      }
+      if(f.pos.equals("noun")||f.pos.equals("pronoun"))
+      {
+        String number=f.number.equals("pl")?"plural":"singular",kase="absolutive",numeral=headNum.get(i);if(numeral!=null&&NUM2.contains(numeral))number="dual";else if(numeral!=null&&NUMPL.contains(numeral))number="plural";
+        Integer gv=null;if(!verbs.isEmpty()){int best=999999;for(int v:verbs){int d=Math.abs(v-i);if(d<best){best=d;gv=v;}}}boolean motion=gv!=null&&info.get(gv)!=null&&MOTION.contains(normRu(info.get(gv).lemma));String pc=caseFromPrep(prepBefore(t,i),f,motion);
+        String prep=prepBefore(t,i);String govLemma=(gv!=null&&info.get(gv)!=null)?normRu(info.get(gv).lemma):"";
+        if((prep.equals("на")||prep.equals("в")||prep.equals("во")||prep.equals("за"))&&VIEW.contains(govLemma))pc="accusative";
+        if(pc!=null)kase=pc;else if(f.morph.equals("directional"))kase="directional";else if(gv!=null&&obj.get(gv)!=null&&obj.get(gv)==i)kase="accusative";else if(gv!=null&&subj.get(gv)!=null&&subj.get(gv)==i&&obj.get(gv)!=null&&f.pos.equals("noun"))kase="ergative";else if(numeral!=null&&NUM2.contains(numeral))kase=numeral.equals("двух")?"genitive":numeral.equals("двум")?"dative":numeral.equals("двумя")?"instrumental":"absolutive";else if(numeral!=null&&NUMPL.contains(numeral))kase="absolutive";else kase=f.morph.equals("directional")?"directional":f.morph.equals("gen")?"genitive":f.morph.equals("dat")?"dative":f.morph.equals("acc")?"accusative":f.morph.equals("ins")?"instrumental":f.morph.equals("loc")?"locative":kase;
+        if(duringHeads.contains(i))kase="genitive";
+        if(WH.contains(nt))out.add(f.root);
+        else if(f.pos.equals("pronoun")){if(f.root.equals("hit")||f.root.equals("emøg")||f.root.equals("najem"))out.add(f.root);else out.add(f.root+(kase.equals("accusative")?"ən":""));}else out.add(buildNoun(f.root,number,kase));
+        if(duringHeads.contains(i))out.add("møcokov");
+        continue;
+      }
+      if(f.pos.equals("adverb")){out.add(f.root+"of");continue;}
+      if(f.pos.equals("adjective"))
+      {
+        String number=f.number.equals("pl")?"plural":"singular";for(int j=i+1;j<n&&j<i+6;j++){RuForm h=info.get(j);if(h!=null&&(h.pos.equals("noun")||h.pos.equals("pronoun"))){String nu=headNum.get(j);if(nu!=null&&NUM2.contains(nu))number="dual";else if((nu!=null&&NUMPL.contains(nu))||h.number.equals("pl"))number="plural";break;}}
+        String root=f.root;if(f.morph.startsWith("derived_adj:yb"))root=root+"yb";if(neg.contains(i))root="na"+root;if(intense.contains(i))root="hy"+root;String d=degree.get(i),suf=d==null?"":d.equals("comparative")?"yv":d.equals("superlative")?"yvm":d.equals("attenuative")?"yś":"yvs";out.add(root+(number.equals("dual")?"et":number.equals("plural")?"in":"")+suf);continue;
+      }
+      out.add(f.root);
+    }
+    String s=join(out);if(question&&!wh&&!s.toLowerCase(Locale.ROOT).startsWith("li "))s="li "+s;return s;
+  }
+
+  public String russianToSilmir(String text)
+  {
+    Matcher m=Pattern.compile("([^.!?;]+)([.!?;]*)").matcher(text);StringBuilder b=new StringBuilder();int end=0;
+    while(m.find())
+    {
+      String body=m.group(1),pun=m.group(2);String q=body+(pun.contains("?")?"?":"");String tr=translateRussianClause(q);
+      if(pun.contains("?")&&tr.endsWith("?"))tr=tr.substring(0,tr.length()-1);
+      String bt=body.trim();if(!bt.isEmpty()&&Character.isUpperCase(bt.charAt(0))&&!tr.isEmpty())tr=Character.toUpperCase(tr.charAt(0))+tr.substring(1);
+      if(b.length()>0&&b.charAt(b.length()-1)!=' '&&!tr.isEmpty())b.append(' ');
+      b.append(tr).append(pun);end=m.end();
+    }
+    if(end<text.length())b.append(text.substring(end));return b.toString().trim();
+  }
+
+  private static List<String> tokens(String s){ArrayList<String>r=new ArrayList<String>();Matcher m=TOKEN.matcher(s);while(m.find())r.add(m.group());return r;}
+  private static boolean isWord(String s)
+  {
+    if(s==null||s.isEmpty())return false;
+    for(int i=0;i<s.length();i++)
+    {
+      char c=s.charAt(i);
+      if(c=='\''&&i>0&&i+1<s.length())continue;
+      if(!Character.isLetter(c))return false;
+    }
+    return true;
+  }
+  private static String normRu(String s){return s.toLowerCase(Locale.ROOT).replace('ё','е').trim();}
+  private static String russianStem(String s)
+  {
+    s=normRu(s);if(s.indexOf(' ')>=0)return s;String[] sf={"иями","ями","ами","его","ого","ему","ому","ими","ыми","ешь","ишь","ете","ите","ую","юю","ей","ой","ий","ый","ая","яя","ое","ее","ые","ие","ых","их","ым","им","ом","ем","ах","ях","ам","ям","ов","ев","ть","ти","чь","ся","сь","ала","али","ила","или","ал","ил","ел","ела","ели","ет","ит","ут","ют","ат","ят","ы","и","а","я","у","ю","о","е","ь","й"};for(String x:sf)if(s.length()-x.length()>=3&&s.endsWith(x))return s.substring(0,s.length()-x.length());return s;
+  }
+  private static String latinStem(String s)
+  {
+    s=s.toLowerCase(Locale.ROOT);if(s.indexOf(' ')>=0)return s;String[] sf={"iyami","yami","ami","ogo","ego","emu","omu","imi","ymi","esh","ish","ete","ite","uyu","yuyu","aya","yaya","oe","ee","ye","ie","ykh","ikh","ym","im","om","em","akh","yakh","am","yam","ov","ev","ey","sya","ala","ali","ila","ili","al","il","et","it","ut","yut","at","yat","iy","yy","oy","ti","t","a","i","y","u","o","e"};for(String x:sf)if(s.length()-x.length()>=3&&s.endsWith(x))return s.substring(0,s.length()-x.length());return s;
+  }
+  private static boolean looksLatinRussian(String s){String x=s.toLowerCase(Locale.ROOT);return x.matches(".*(?:shch|zh|kh|ts|ch|sh|ya|yu|yo).*")||x.matches(".*(?:ogo|emu|ami|ymi|aya|oe|ie|stvo|nie|skiy|skaya|ovat|ivat|it|at|yat|ost|enie)$");}
+  private static String transliterateRuToSil(String s)
+  {
+    StringBuilder b=new StringBuilder();String l=s.toLowerCase(Locale.ROOT);for(int i=0;i<l.length();i++){char c=l.charAt(i);switch(c){case 'а':b.append("a");break;case 'б':b.append("b");break;case 'в':b.append("v");break;case 'г':b.append("g");break;case 'д':b.append("d");break;case 'е':b.append("e");break;case 'ё':b.append("jo");break;case 'ж':b.append("ź");break;case 'з':b.append("z");break;case 'и':b.append("i");break;case 'й':b.append("j");break;case 'к':b.append("k");break;case 'л':b.append("l");break;case 'м':b.append("m");break;case 'н':b.append("n");break;case 'о':b.append("o");break;case 'п':b.append("p");break;case 'р':b.append("r");break;case 'с':b.append("s");break;case 'т':b.append("t");break;case 'у':b.append("u");break;case 'ф':b.append("f");break;case 'х':b.append("h");break;case 'ц':b.append("ts");break;case 'ч':b.append("tś");break;case 'ш':b.append("ś");break;case 'щ':b.append("śś");break;case 'ъ':break;case 'ы':b.append("y");break;case 'ь':break;case 'э':b.append("e");break;case 'ю':b.append("ju");break;case 'я':b.append("ja");break;default:if(Character.isLetterOrDigit(c))b.append(c);}}
+    return b.toString();
+  }
+  private static String transliterateSilToRu(String s)
+  {
+    String x=s.toLowerCase(Locale.ROOT),out="";for(int i=0;i<x.length();){if(x.startsWith("śś",i)){out+="щ";i+=2;continue;}if(x.startsWith("tś",i)){out+="ч";i+=2;continue;}if(x.startsWith("ts",i)){out+="ц";i+=2;continue;}char c=x.charAt(i++);switch(c){case 'a':out+="а";break;case 'æ':out+="ай";break;case 'b':out+="б";break;case 'd':out+="д";break;case 'c':out+="к";break;case 'e':out+="е";break;case 'ə':out+="э";break;case 'f':out+="ф";break;case 'g':out+="г";break;case 'h':out+="х";break;case 'i':out+="и";break;case 'j':out+="й";break;case 'k':out+="к";break;case 'l':out+="л";break;case 'm':out+="м";break;case 'n':out+="н";break;case 'o':out+="о";break;case 'ø':out+="ой";break;case 'p':out+="п";break;case 'r':out+="р";break;case 's':out+="с";break;case 'ś':out+="ш";break;case 't':out+="т";break;case 'u':out+="у";break;case 'v':out+="в";break;case 'y':out+="ы";break;case 'z':out+="з";break;case 'ź':out+="ж";break;default:out+=c;}}return out;
+  }
+  private static String join(List<String> p)
+  {
+    StringBuilder b=new StringBuilder();for(String s:p){if(s==null||s.isEmpty())continue;if(s.matches("[,.;:!?\\)\\]]")){while(b.length()>0&&b.charAt(b.length()-1)==' ')b.deleteCharAt(b.length()-1);b.append(s);}else if(s.matches("[\\(\\[]")){if(b.length()>0&&b.charAt(b.length()-1)!=' ')b.append(' ');b.append(s);}else{if(b.length()>0&&b.charAt(b.length()-1)!=' '&&b.charAt(b.length()-1)!='('&&b.charAt(b.length()-1)!='[')b.append(' ');b.append(s);}}return b.toString().trim();
+  }
+  private static String capitalizeLike(String src,String out){if(src!=null&&!src.isEmpty()&&Character.isUpperCase(src.charAt(0))&&out!=null&&!out.isEmpty())return Character.toUpperCase(out.charAt(0))+out.substring(1);return out;}
+}
